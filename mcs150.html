@@ -8,62 +8,43 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
-
   .header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
   .header h1 { font-size: 18px; font-weight: 600; }
   .header p  { font-size: 12px; opacity: 0.7; margin-top: 2px; }
   .logo { width: 36px; height: 36px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
-
   .container { max-width: 640px; margin: 32px auto; padding: 0 16px 48px; }
-
   .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
   .card-title { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
-
   .search-row { display: flex; gap: 8px; }
   input[type="text"] { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1e293b; outline: none; transition: border-color 0.15s; }
   input[type="text"]:focus { border-color: #2563eb; }
-
   .btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
   .btn:hover { opacity: 0.88; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary { background: #2563eb; color: white; }
   .btn-success { background: #16a34a; color: white; width: 100%; padding: 12px; font-size: 15px; margin-top: 8px; }
   .btn-ghost   { background: transparent; border: 1px solid #e2e8f0; color: #64748b; font-size: 13px; padding: 6px 14px; }
-
   .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
   .result-item:hover { border-color: #2563eb; background: #eff6ff; }
   .result-name { font-weight: 500; font-size: 14px; }
   .result-meta { font-size: 11px; color: #94a3b8; margin-top: 3px; font-family: monospace; }
-
   .field-row { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
   .field-label { width: 160px; flex-shrink: 0; font-size: 11px; color: #94a3b8; font-family: monospace; padding-top: 1px; }
   .field-value { font-size: 13px; color: #1e293b; word-break: break-word; }
-
   .section { margin-bottom: 18px; }
   .section-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
-
   .owner-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }
   .owner-box .section-label { color: #16a34a; }
-
   .warn-box  { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
   .error-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; margin-top: 12px; }
-
   .success-box { text-align: center; padding: 32px 20px; }
   .check-circle { width: 56px; height: 56px; background: #dcfce7; border: 2px solid #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #16a34a; margin: 0 auto 16px; }
-
   .spinner { width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-box { text-align: center; padding: 32px; color: #64748b; font-size: 14px; }
-
   .hint { font-size: 11px; color: #94a3b8; margin-top: 10px; }
   .back-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
   .deal-title { font-size: 16px; font-weight: 600; margin-top: 2px; }
-
-  /* Setup screen */
-  .setup-field { margin-bottom: 14px; }
-  .setup-field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #374151; }
-  .setup-field input { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-family: monospace; }
-  .setup-field .hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -79,289 +60,100 @@
 <div class="container" id="app"></div>
 
 <script>
-// ─────────────────────────────────────────────────────────────────────────────
-// CONFIG — filled in from setup screen or localStorage
-// ─────────────────────────────────────────────────────────────────────────────
-let CONFIG = {
-  clientId:     '',
-  clientSecret: '',
-  refreshToken: '',
-  accessToken:  '',
-  apiDomain:    'https://www.zohoapis.com',
-};
+const WORKER = 'https://zoho-proxy.oscarmh00.workers.dev';
 
-const DEAL_FIELDS = [
-  'id','Deal_Name','Account_Name','Stage','Package_Requested',
-  'Owner_1_Full_Name','Owner_2_Full_Name','Applicant_Title1',
-  'DBA','Physical_Street','Physical_City','Physical_State','Physical_Zip',
-  'Mailing_Street','Mailing_City','Mailing_State','Mailing_Zip_Code',
-  'Business_Phone_Number','Email','USDOT','MC_Number','EIN_Number_or_S_S',
-  'Business_Structure','Type_of_Authority_You_are_Applying_for',
-  'Interstate','Intrastate','Straight_Trucks_Owned','Truck_Tractors_Owned',
-  'Number_of_Interstate_Haulers','Number_of_Intrastate_Drivers','Contact_Name',
-].join(',');
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ZOHO API
-// ─────────────────────────────────────────────────────────────────────────────
-async function refreshAccessToken() {
-  const cfg = loadConfig();
-  const res = await fetch(`https://accounts.zoho.com/oauth/v2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type:    'refresh_token',
-      client_id:     cfg.clientId,
-      client_secret: cfg.clientSecret,
-      refresh_token: cfg.refreshToken,
-    })
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Could not refresh token. Check your Client ID, Secret, and Refresh Token in Settings.');
-  cfg.accessToken = data.access_token;
-  saveConfig(cfg);
-  return data.access_token;
-}
-
-async function zohoGet(path, params = {}) {
-  const cfg = loadConfig();
-  if (!cfg.accessToken) cfg.accessToken = await refreshAccessToken();
-  const url = new URL(`${cfg.apiDomain}/crm/v7/${path}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  let res = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${cfg.accessToken}` } });
-  if (res.status === 401) {
-    cfg.accessToken = await refreshAccessToken();
-    res = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${cfg.accessToken}` } });
-  }
-  if (!res.ok) throw new Error(`Zoho API error ${res.status}`);
+async function searchDeals(q) {
+  const res = await fetch(`${WORKER}?action=search&word=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error('Search failed — check your connection.');
   return res.json();
 }
 
-async function searchDeals(query) {
-  const data = await zohoGet('Deals/search', {
-    word: query,
-    fields: 'id,Deal_Name,Stage,USDOT,Owner_1_Full_Name,Physical_City,Physical_State',
-    per_page: 8,
-  });
-  return data.data || [];
-}
-
 async function fetchDeal(id) {
-  const data = await zohoGet('Deals', { ids: id, fields: DEAL_FIELDS });
-  return (data.data || [])[0];
+  const res = await fetch(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error('Could not load deal.');
+  return res.json();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CONFIG STORAGE
-// ─────────────────────────────────────────────────────────────────────────────
-function saveConfig(cfg) {
-  localStorage.setItem('ta_zoho_config', JSON.stringify(cfg));
-}
-function loadConfig() {
-  try { return JSON.parse(localStorage.getItem('ta_zoho_config') || '{}'); } catch { return {}; }
-}
-function isConfigured() {
-  const c = loadConfig();
-  return !!(c.clientId && c.clientSecret && c.refreshToken);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MCS-150 FIELD MAPPING
-// ─────────────────────────────────────────────────────────────────────────────
 function mapToMCS150(d) {
   const f = {};
   const set = (id, val) => { if (val != null && String(val).trim()) f[id] = String(val).trim(); };
-
-  set('1bizName',         d.Deal_Name);
-  set('2dbaName',         d.DBA);
-  set('3principalStreet', d.Physical_Street);
-  set('4principalCity',   d.Physical_City);
-  set('5principalState',  d.Physical_State);
-  set('6principalZip',    d.Physical_Zip);
-
+  set('1bizName', d.Deal_Name); set('2dbaName', d.DBA);
+  set('3principalStreet', d.Physical_Street); set('4principalCity', d.Physical_City);
+  set('5principalState',  d.Physical_State);  set('6principalZip',  d.Physical_Zip);
   const sameMail = d.Mailing_Street === d.Physical_Street && d.Mailing_City === d.Physical_City;
   f['Mailing Button'] = (sameMail || !d.Mailing_Street) ? '/0' : '/1';
   if (!sameMail && d.Mailing_Street) {
     set('8mailStreet', d.Mailing_Street); set('9mailCity',  d.Mailing_City);
     set('10mailState', d.Mailing_State);  set('11mailZip',  d.Mailing_Zip_Code);
   }
-
-  set('13bizPhone',    d.Business_Phone_Number);
-  set('20eMail',       d.Email);
-  set('16usdotNumber', d.USDOT);
-  set('17mcmxNumber',  d.MC_Number);
-  set('19irsNumber',   d.EIN_Number_or_S_S);
-
-  const isInter = d.Interstate === true || String(d.Interstate) === 'true'
-    || (d.Type_of_Authority_You_are_Applying_for || '').toLowerCase().includes('common carrier')
-    || (d.Package_Requested || '').toLowerCase().includes('interstate');
-  const isIntra = d.Intrastate === true || String(d.Intrastate) === 'true'
-    || (d.Package_Requested || '').toLowerCase().includes('intrastate');
-  if (isInter) f['22aBox'] = '/Yes';
-  if (isIntra) f['22cBox'] = '/Yes';
-  if (!f['22aBox'] && !f['22cBox']) f['22aBox'] = '/Yes';
-
-  f['23aBox'] = '/Yes';
-  f['24aBox'] = '/Yes';
-  f['Reason Button'] = '/0';
-  f['Revoke Button'] = '/1';
-
-  if (d.Straight_Trucks_Owned)        set('straightOwn',  String(d.Straight_Trucks_Owned));
-  if (d.Truck_Tractors_Owned)         set('tractorOwn',   String(d.Truck_Tractors_Owned));
-  if (d.Number_of_Interstate_Haulers) set('interBeyond',  String(d.Number_of_Interstate_Haulers));
-  if (d.Number_of_Intrastate_Drivers) set('intraBeyond',  String(d.Number_of_Intrastate_Drivers));
-  const tot = (d.Number_of_Interstate_Haulers || 0) + (d.Number_of_Intrastate_Drivers || 0);
-  if (tot > 0) set('totalDrivers', String(tot));
-
+  set('13bizPhone', d.Business_Phone_Number); set('20eMail', d.Email);
+  set('16usdotNumber', d.USDOT); set('17mcmxNumber', d.MC_Number); set('19irsNumber', d.EIN_Number_or_S_S);
+  const isInter = d.Interstate===true||String(d.Interstate)==='true'||(d.Type_of_Authority_You_are_Applying_for||'').toLowerCase().includes('common carrier')||(d.Package_Requested||'').toLowerCase().includes('interstate');
+  const isIntra = d.Intrastate===true||String(d.Intrastate)==='true'||(d.Package_Requested||'').toLowerCase().includes('intrastate');
+  if (isInter) f['22aBox']='/Yes'; if (isIntra) f['22cBox']='/Yes';
+  if (!f['22aBox']&&!f['22cBox']) f['22aBox']='/Yes';
+  f['23aBox']='/Yes'; f['24aBox']='/Yes'; f['Reason Button']='/0'; f['Revoke Button']='/1';
+  if (d.Straight_Trucks_Owned)        set('straightOwn', String(d.Straight_Trucks_Owned));
+  if (d.Truck_Tractors_Owned)         set('tractorOwn',  String(d.Truck_Tractors_Owned));
+  if (d.Number_of_Interstate_Haulers) set('interBeyond', String(d.Number_of_Interstate_Haulers));
+  if (d.Number_of_Intrastate_Drivers) set('intraBeyond', String(d.Number_of_Intrastate_Drivers));
+  const tot = (d.Number_of_Interstate_Haulers||0)+(d.Number_of_Intrastate_Drivers||0);
+  if (tot>0) set('totalDrivers', String(tot));
   const owner1 = d.Owner_1_Full_Name || d.Contact_Name?.name || d.Contact_Name || '';
   const title1 = d.Applicant_Title1 || 'Owner';
-  set('officerName1',  owner1); set('officerTitle1', title1);
+  set('officerName1', owner1); set('officerTitle1', title1);
   if (d.Owner_2_Full_Name) { set('officerName2', d.Owner_2_Full_Name); set('officerTitle2', title1); }
-  set('certifyName',  owner1);
-  set('certifyTitle', title1);
+  set('certifyName', owner1); set('certifyTitle', title1);
   return f;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PDF GENERATION
-// ─────────────────────────────────────────────────────────────────────────────
 async function generatePDF(deal) {
-  const pdfUrl = 'https://www.fmcsa.dot.gov/sites/fmcsa.dot.gov/files/2026-02/MCS-150%20Form.pdf';
-  const proxy  = 'https://corsproxy.io/?url=' + encodeURIComponent(pdfUrl);
-  const resp   = await fetch(proxy);
-  if (!resp.ok) throw new Error('Could not download MCS-150 form from FMCSA. Check your internet connection.');
+  const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent('https://www.fmcsa.dot.gov/sites/fmcsa.dot.gov/files/2026-02/MCS-150%20Form.pdf');
+  const resp  = await fetch(proxy);
+  if (!resp.ok) throw new Error('Could not download MCS-150 form from FMCSA.');
   const pdfDoc = await PDFLib.PDFDocument.load(await resp.arrayBuffer(), { ignoreEncryption: true });
   const form   = pdfDoc.getForm();
   const fv     = mapToMCS150(deal);
-
   for (const field of form.getFields()) {
-    const name = field.getName();
-    const val  = fv[name];
+    const name = field.getName(), val = fv[name];
     if (!val) continue;
     try {
       const t = field.constructor.name;
-      if      (t === 'PDFTextField')                    field.setText(val);
-      else if (t === 'PDFCheckBox' && val === '/Yes')   field.check();
-      else if (t === 'PDFRadioGroup') { try { field.select(val); } catch {} }
+      if      (t==='PDFTextField')                  field.setText(val);
+      else if (t==='PDFCheckBox'&&val==='/Yes')      field.check();
+      else if (t==='PDFRadioGroup') try{field.select(val);}catch{}
     } catch {}
   }
   form.flatten();
   return pdfDoc.save();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RENDER HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
 const app = document.getElementById('app');
+const fRow = (label, value) => !value ? '' : `<div class="field-row"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
 
-function fieldRow(label, value) {
-  if (!value) return '';
-  return `<div class="field-row"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCREENS
-// ─────────────────────────────────────────────────────────────────────────────
-
-function renderSetup() {
-  const cfg = loadConfig();
-  app.innerHTML = `
-    <div class="card">
-      <div class="card-title">⚙ One-time Setup — Zoho API Credentials</div>
-      <p style="font-size:13px;color:#64748b;margin-bottom:20px;">Enter your Zoho CRM API credentials below. These are saved locally in your browser — you only do this once.</p>
-
-      <div class="setup-field">
-        <label>Client ID</label>
-        <input type="text" id="cfg-clientId" value="${cfg.clientId||''}" placeholder="1000.XXXXXXXXXX">
-        <div class="hint">From Zoho Developer Console → Self Client → Client ID</div>
-      </div>
-      <div class="setup-field">
-        <label>Client Secret</label>
-        <input type="text" id="cfg-clientSecret" value="${cfg.clientSecret||''}" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-      </div>
-      <div class="setup-field">
-        <label>Refresh Token</label>
-        <input type="text" id="cfg-refreshToken" value="${cfg.refreshToken||''}" placeholder="1000.xxxxxxxx.xxxxxxxx">
-        <div class="hint">Generated once from the authorization code. <a href="#" id="howto-link" style="color:#2563eb">How to get this →</a></div>
-      </div>
-      <div id="howto" style="display:none;background:#eff6ff;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#1e40af;line-height:1.6;">
-        <strong>Steps to get your Refresh Token:</strong><br>
-        1. Go to <a href="https://accounts.zoho.com/developerconsole" target="_blank" style="color:#2563eb">accounts.zoho.com/developerconsole</a><br>
-        2. Click <strong>Self Client</strong> → <strong>Generate Code</strong><br>
-        3. Scope: <code style="background:#dbeafe;padding:2px 4px;border-radius:3px">ZohoCRM.modules.READ,ZohoCRM.settings.READ</code><br>
-        4. Duration: <strong>10 minutes</strong> → click Create → copy the code<br>
-        5. Run this URL in your browser (replace CODE and your Client ID/Secret):<br>
-        <code style="background:#dbeafe;padding:4px 6px;border-radius:3px;display:block;margin-top:6px;word-break:break-all">https://accounts.zoho.com/oauth/v2/token?code=CODE&grant_type=authorization_code&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&redirect_uri=https://paparowdy.github.io/ta-forms/</code><br>
-        6. Copy the <strong>refresh_token</strong> from the JSON response.
-      </div>
-
-      <button class="btn btn-primary" id="save-cfg-btn" style="width:100%">Save &amp; Connect to Zoho →</button>
-      <div id="cfg-error" class="error-box" style="display:none"></div>
-    </div>
-  `;
-
-  document.getElementById('howto-link').onclick = (e) => {
-    e.preventDefault();
-    const h = document.getElementById('howto');
-    h.style.display = h.style.display === 'none' ? 'block' : 'none';
-  };
-
-  document.getElementById('save-cfg-btn').onclick = async () => {
-    const btn = document.getElementById('save-cfg-btn');
-    btn.disabled = true; btn.textContent = 'Testing connection…';
-    const cfg = {
-      clientId:     document.getElementById('cfg-clientId').value.trim(),
-      clientSecret: document.getElementById('cfg-clientSecret').value.trim(),
-      refreshToken: document.getElementById('cfg-refreshToken').value.trim(),
-      accessToken:  '',
-      apiDomain:    'https://www.zohoapis.com',
-    };
-    if (!cfg.clientId || !cfg.clientSecret || !cfg.refreshToken) {
-      document.getElementById('cfg-error').style.display = 'block';
-      document.getElementById('cfg-error').textContent = 'Please fill in all three fields.';
-      btn.disabled = false; btn.textContent = 'Save & Connect to Zoho →';
-      return;
-    }
-    saveConfig(cfg);
-    try {
-      await refreshAccessToken();
-      renderSearch();
-    } catch(e) {
-      document.getElementById('cfg-error').style.display = 'block';
-      document.getElementById('cfg-error').textContent = e.message;
-      btn.disabled = false; btn.textContent = 'Save & Connect to Zoho →';
-    }
-  };
-}
-
-function renderSearch(errorMsg) {
+function renderSearch(err) {
   app.innerHTML = `
     <div class="card">
       <div class="card-title">Search closed deal</div>
       <div class="search-row">
-        <input type="text" id="search-input" placeholder="Company name, DOT #, owner name…">
-        <button class="btn btn-primary" id="search-btn">Search →</button>
+        <input type="text" id="si" placeholder="Company name, DOT #, owner name…" autofocus>
+        <button class="btn btn-primary" id="sb">Search →</button>
       </div>
-      ${errorMsg ? `<div class="error-box">${errorMsg}</div>` : ''}
-      <p class="hint" style="margin-top:10px">Press Enter or click Search to look up a Deal from Zoho CRM.</p>
-    </div>
-    <div style="text-align:right"><button class="btn btn-ghost" id="settings-btn" style="font-size:11px">⚙ Settings</button></div>
-  `;
-
-  const doSearch = async () => {
-    const q = document.getElementById('search-input').value.trim();
+      ${err ? `<div class="error-box">${err}</div>` : ''}
+      <p class="hint" style="margin-top:10px">Search any Deal from Zoho CRM by company name or DOT number.</p>
+    </div>`;
+  const go = async () => {
+    const q = document.getElementById('si').value.trim();
     if (!q) return;
-    renderLoading('Searching Zoho CRM for "' + q + '"…');
+    renderLoading(`Searching for "${q}"…`);
     try {
       const results = await searchDeals(q);
-      if (results.length === 0) renderSearch('No deals found for "' + q + '". Try a different name.');
+      if (!results.length) renderSearch(`No deals found for "${q}". Try a different name.`);
       else renderPick(results);
     } catch(e) { renderSearch('Error: ' + e.message); }
   };
-
-  document.getElementById('search-btn').onclick = doSearch;
-  document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
-  document.getElementById('settings-btn').onclick = renderSetup;
+  document.getElementById('sb').onclick = go;
+  document.getElementById('si').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
 }
 
 function renderLoading(msg) {
@@ -369,118 +161,77 @@ function renderLoading(msg) {
 }
 
 function renderPick(results) {
-  const items = results.map(r => {
-    const meta = [r.Stage, r.USDOT ? 'DOT# '+r.USDOT : null, r.Owner_1_Full_Name,
-      [r.Physical_City, r.Physical_State].filter(Boolean).join(', ')].filter(Boolean).join('  ·  ');
-    return `<div class="result-item" data-id="${r.id}">
-      <div><div class="result-name">${r.Deal_Name || r.id}</div><div class="result-meta">${meta}</div></div>
-      <span style="color:#94a3b8;font-size:20px">›</span>
-    </div>`;
-  }).join('');
-
   app.innerHTML = `
     <div class="card">
       <div class="back-row">
         <div class="card-title" style="margin-bottom:0">Select a deal</div>
-        <button class="btn btn-ghost" id="back-btn">← Back</button>
+        <button class="btn btn-ghost" id="bb">← Back</button>
       </div>
-      ${items}
-    </div>
-  `;
-
-  document.getElementById('back-btn').onclick = renderSearch;
+      ${results.map(r => `<div class="result-item" data-id="${r.id}">
+        <div>
+          <div class="result-name">${r.Deal_Name||r.id}</div>
+          <div class="result-meta">${[r.Stage,r.USDOT?'DOT# '+r.USDOT:null,r.Owner_1_Full_Name,[r.Physical_City,r.Physical_State].filter(Boolean).join(', ')].filter(Boolean).join('  ·  ')}</div>
+        </div>
+        <span style="color:#94a3b8;font-size:20px">›</span>
+      </div>`).join('')}
+    </div>`;
+  document.getElementById('bb').onclick = renderSearch;
   document.querySelectorAll('.result-item').forEach(el => {
     el.onclick = async () => {
-      const id = el.dataset.id;
-      const name = el.querySelector('.result-name').textContent;
-      renderLoading('Loading ' + name + '…');
-      try {
-        const deal = await fetchDeal(id);
-        renderPreview(deal);
-      } catch(e) { renderSearch('Error loading deal: ' + e.message); }
+      renderLoading('Loading ' + el.querySelector('.result-name').textContent + '…');
+      try { renderPreview(await fetchDeal(el.dataset.id)); }
+      catch(e) { renderSearch('Error: ' + e.message); }
     };
   });
 }
 
 function renderPreview(deal) {
-  const missingOwner = !deal.Owner_1_Full_Name;
-  const ownerName    = deal.Owner_1_Full_Name || deal.Contact_Name?.name || deal.Contact_Name || '—';
-  const owner2       = deal.Owner_2_Full_Name;
-  const title        = deal.Applicant_Title1 || 'Owner';
-  const mailingAddr  = deal.Mailing_Street
-    ? [deal.Mailing_Street, [deal.Mailing_City, deal.Mailing_State, deal.Mailing_Zip_Code].filter(Boolean).join(', ')].filter(Boolean).join(', ')
-    : 'Same as physical';
-
+  const owner1  = deal.Owner_1_Full_Name || deal.Contact_Name?.name || deal.Contact_Name || '—';
+  const mailing = deal.Mailing_Street ? [deal.Mailing_Street,[deal.Mailing_City,deal.Mailing_State,deal.Mailing_Zip_Code].filter(Boolean).join(', ')].filter(Boolean).join(', ') : 'Same as physical';
   app.innerHTML = `
     <div class="card">
       <div class="back-row">
-        <div>
-          <div class="card-title" style="margin-bottom:0">Confirm data</div>
-          <div class="deal-title">${deal.Deal_Name}</div>
-        </div>
-        <button class="btn btn-ghost" id="back-btn">← Back</button>
+        <div><div class="card-title" style="margin-bottom:0">Confirm data</div><div class="deal-title">${deal.Deal_Name}</div></div>
+        <button class="btn btn-ghost" id="bb">← Back</button>
       </div>
-
-      ${missingOwner ? `<div class="warn-box">⚠ Owner 1 Full Name is blank on this Deal — using Contact Name as fallback. For best results, add the owner's full name to the Deal record in Zoho.</div>` : ''}
-
+      ${!deal.Owner_1_Full_Name ? `<div class="warn-box">⚠ Owner 1 Full Name is blank — using Contact Name as fallback. Add owner name to the Deal in Zoho for best results.</div>` : ''}
       <div class="owner-box">
         <div class="section-label">Owner / Applicant — Section 30</div>
-        ${fieldRow('Owner 1', ownerName)}
-        ${owner2 ? fieldRow('Owner 2', owner2) : ''}
-        ${fieldRow('Title', title)}
+        ${fRow('Owner 1', owner1)}
+        ${fRow('Owner 2', deal.Owner_2_Full_Name)}
+        ${fRow('Title', deal.Applicant_Title1||'Owner')}
       </div>
-
       <div class="section">
         <div class="section-label">Company &amp; ID Numbers</div>
-        ${fieldRow('Legal Name', deal.Deal_Name)}
-        ${fieldRow('DBA', deal.DBA)}
-        ${fieldRow('USDOT #', deal.USDOT)}
-        ${fieldRow('MC #', deal.MC_Number)}
-        ${fieldRow('EIN / SS #', deal.EIN_Number_or_S_S)}
-        ${fieldRow('Business Type', deal.Business_Structure)}
+        ${fRow('Legal Name',deal.Deal_Name)}${fRow('DBA',deal.DBA)}${fRow('USDOT #',deal.USDOT)}${fRow('MC #',deal.MC_Number)}${fRow('EIN / SS #',deal.EIN_Number_or_S_S)}${fRow('Business Type',deal.Business_Structure)}
       </div>
-
       <div class="section">
         <div class="section-label">Addresses</div>
-        ${fieldRow('Physical', [deal.Physical_Street, [deal.Physical_City, deal.Physical_State, deal.Physical_Zip].filter(Boolean).join(', ')].filter(Boolean).join(', '))}
-        ${fieldRow('Mailing', mailingAddr)}
+        ${fRow('Physical',[deal.Physical_Street,[deal.Physical_City,deal.Physical_State,deal.Physical_Zip].filter(Boolean).join(', ')].filter(Boolean).join(', '))}
+        ${fRow('Mailing',mailing)}
       </div>
-
       <div class="section">
         <div class="section-label">Contact &amp; Operations</div>
-        ${fieldRow('Phone', deal.Business_Phone_Number)}
-        ${fieldRow('Email', deal.Email)}
-        ${fieldRow('Authority', deal.Type_of_Authority_You_are_Applying_for)}
-        ${fieldRow('Package', deal.Package_Requested)}
-        ${fieldRow('Trucks', [deal.Straight_Trucks_Owned && deal.Straight_Trucks_Owned+' straight', deal.Truck_Tractors_Owned && deal.Truck_Tractors_Owned+' tractors'].filter(Boolean).join(', '))}
-        ${fieldRow('Drivers', [deal.Number_of_Interstate_Haulers && deal.Number_of_Interstate_Haulers+' interstate', deal.Number_of_Intrastate_Drivers && deal.Number_of_Intrastate_Drivers+' intrastate'].filter(Boolean).join(', '))}
+        ${fRow('Phone',deal.Business_Phone_Number)}${fRow('Email',deal.Email)}${fRow('Authority',deal.Type_of_Authority_You_are_Applying_for)}${fRow('Package',deal.Package_Requested)}
+        ${fRow('Trucks',[deal.Straight_Trucks_Owned&&deal.Straight_Trucks_Owned+' straight',deal.Truck_Tractors_Owned&&deal.Truck_Tractors_Owned+' tractors'].filter(Boolean).join(', '))}
+        ${fRow('Drivers',[deal.Number_of_Interstate_Haulers&&deal.Number_of_Interstate_Haulers+' interstate',deal.Number_of_Intrastate_Drivers&&deal.Number_of_Intrastate_Drivers+' intrastate'].filter(Boolean).join(', '))}
       </div>
-
       <p class="hint">Blank fields (carrier mileage, signature, date) can be completed manually after downloading.</p>
-      <button class="btn btn-success" id="gen-btn">⬇ Generate &amp; Download Prefilled MCS-150</button>
-      <div id="gen-error" class="error-box" style="display:none"></div>
-    </div>
-  `;
-
-  document.getElementById('back-btn').onclick = renderSearch;
-
-  document.getElementById('gen-btn').onclick = async () => {
-    const btn = document.getElementById('gen-btn');
-    btn.disabled = true; btn.textContent = 'Generating PDF…';
+      <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Prefilled MCS-150</button>
+      <div id="ge" class="error-box" style="display:none"></div>
+    </div>`;
+  document.getElementById('bb').onclick = renderSearch;
+  document.getElementById('gb').onclick = async () => {
+    const btn = document.getElementById('gb');
+    btn.disabled=true; btn.textContent='Generating PDF…';
     try {
       const bytes = await generatePDF(deal);
-      const blob  = new Blob([bytes], { type: 'application/pdf' });
-      const name  = (deal.Deal_Name || 'client').replace(/[^a-zA-Z0-9]/g, '_');
-      const a     = document.createElement('a');
-      a.href     = URL.createObjectURL(blob);
-      a.download = `MCS-150_${name}.pdf`;
-      a.click();
+      const name  = (deal.Deal_Name||'client').replace(/[^a-zA-Z0-9]/g,'_');
+      Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([bytes],{type:'application/pdf'})),download:`MCS-150_${name}.pdf`}).click();
       renderDone(deal);
     } catch(e) {
-      const errEl = document.getElementById('gen-error');
-      errEl.style.display = 'block';
-      errEl.textContent   = 'Error: ' + e.message;
-      btn.disabled = false; btn.textContent = '⬇ Generate & Download Prefilled MCS-150';
+      const err=document.getElementById('ge'); err.style.display='block'; err.textContent='Error: '+e.message;
+      btn.disabled=false; btn.textContent='⬇ Generate & Download Prefilled MCS-150';
     }
   };
 }
@@ -492,46 +243,31 @@ function renderDone(deal) {
         <div class="check-circle">✓</div>
         <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">MCS-150 Downloaded!</h2>
         <p style="color:#64748b;font-size:14px;margin-bottom:24px">${deal.Deal_Name}</p>
-        <button class="btn btn-primary" id="another-btn" style="margin-right:8px">Generate Another</button>
-        <button class="btn btn-ghost" id="redownload-btn">Re-download PDF</button>
+        <button class="btn btn-primary" id="ab" style="margin-right:8px">Generate Another</button>
+        <button class="btn btn-ghost" id="rb">Re-download PDF</button>
       </div>
-    </div>
-  `;
-  document.getElementById('another-btn').onclick = renderSearch;
-  document.getElementById('redownload-btn').onclick = async () => {
+    </div>`;
+  document.getElementById('ab').onclick = renderSearch;
+  document.getElementById('rb').onclick = async () => {
     try {
       const bytes = await generatePDF(deal);
-      const blob  = new Blob([bytes], { type: 'application/pdf' });
-      const name  = (deal.Deal_Name || 'client').replace(/[^a-zA-Z0-9]/g, '_');
-      const a     = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = `MCS-150_${name}.pdf`;
-      a.click();
-    } catch(e) { alert('Error: ' + e.message); }
+      const name  = (deal.Deal_Name||'client').replace(/[^a-zA-Z0-9]/g,'_');
+      Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([bytes],{type:'application/pdf'})),download:`MCS-150_${name}.pdf`}).click();
+    } catch(e) { alert('Error: '+e.message); }
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// INIT — check for Deal ID in URL (for Zoho button) or show search
-// ─────────────────────────────────────────────────────────────────────────────
-async function init() {
-  if (!isConfigured()) { renderSetup(); return; }
-
-  // Support Zoho button: mcs150.html?id=DEAL_ID
-  const params = new URLSearchParams(window.location.search);
-  const dealId = params.get('id');
-
-  if (dealId) {
+// Init — support ?id= from Zoho button
+(async () => {
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (id) {
     renderLoading('Loading deal from Zoho CRM…');
-    try {
-      const deal = await fetchDeal(dealId);
-      renderPreview(deal);
-    } catch(e) { renderSearch('Could not load deal ID ' + dealId + ': ' + e.message); }
+    try { renderPreview(await fetchDeal(id)); }
+    catch(e) { renderSearch('Could not load deal: ' + e.message); }
   } else {
     renderSearch();
   }
-}
-
-init();
+})();
 </script>
 </body>
 </html>
