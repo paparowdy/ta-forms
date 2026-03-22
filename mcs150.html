@@ -108,7 +108,7 @@ function mapToMCS150(d) {
 }
 
 async function generatePDF(deal) {
-  const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent('https://www.fmcsa.dot.gov/sites/fmcsa.dot.gov/files/2026-02/MCS-150%20Form.pdf');
+  const proxy = `${WORKER}?action=pdf`;
   const resp  = await fetch(proxy);
   if (!resp.ok) throw new Error('Could not download MCS-150 form from FMCSA.');
   const pdfDoc = await PDFLib.PDFDocument.load(await resp.arrayBuffer(), { ignoreEncryption: true });
