@@ -16,15 +16,15 @@
   .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
   .card-title { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
   .search-row { display: flex; gap: 8px; }
-  input[type="text"] { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1e293b; outline: none; transition: border-color 0.15s; }
+  input[type="text"] { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1e293b; outline: none; }
   input[type="text"]:focus { border-color: #2563eb; }
-  .btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+  .btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; }
   .btn:hover { opacity: 0.88; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary { background: #2563eb; color: white; }
   .btn-success { background: #16a34a; color: white; width: 100%; padding: 12px; font-size: 15px; margin-top: 8px; }
   .btn-ghost   { background: transparent; border: 1px solid #e2e8f0; color: #64748b; font-size: 13px; padding: 6px 14px; }
-  .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
   .result-item:hover { border-color: #2563eb; background: #eff6ff; }
   .result-name { font-weight: 500; font-size: 14px; }
   .result-meta { font-size: 11px; color: #94a3b8; margin-top: 3px; font-family: monospace; }
@@ -60,72 +60,114 @@
 <div class="container" id="app"></div>
 
 <script>
-const WORKER = 'https://zoho-proxy.oscarmh00.workers.dev';
+const WORKER  = 'https://zoho-proxy.oscarmh00.workers.dev';
+const PDF_URL = 'MCS-150-Form.pdf';
 
 async function searchDeals(q) {
   const res = await fetch(`${WORKER}?action=search&word=${encodeURIComponent(q)}`);
-  if (!res.ok) throw new Error('Search failed — check your connection.');
-  return res.json();
+  if (!res.ok) throw new Error('Search request failed.');
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return Array.isArray(data) ? data : [];
 }
 
 async function fetchDeal(id) {
   const res = await fetch(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
   if (!res.ok) throw new Error('Could not load deal.');
-  return res.json();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
 }
 
 function mapToMCS150(d) {
   const f = {};
   const set = (id, val) => { if (val != null && String(val).trim()) f[id] = String(val).trim(); };
-  set('1bizName', d.Deal_Name); set('2dbaName', d.DBA);
-  set('3principalStreet', d.Physical_Street); set('4principalCity', d.Physical_City);
-  set('5principalState',  d.Physical_State);  set('6principalZip',  d.Physical_Zip);
+
+  set('1bizName',         d.Deal_Name);
+  set('2dbaName',         d.DBA);
+  set('3principalStreet', d.Physical_Street);
+  set('4principalCity',   d.Physical_City);
+  set('5principalState',  d.Physical_State);
+  set('6principalZip',    d.Physical_Zip);
+
   const sameMail = d.Mailing_Street === d.Physical_Street && d.Mailing_City === d.Physical_City;
   f['Mailing Button'] = (sameMail || !d.Mailing_Street) ? '/0' : '/1';
   if (!sameMail && d.Mailing_Street) {
-    set('8mailStreet', d.Mailing_Street); set('9mailCity',  d.Mailing_City);
-    set('10mailState', d.Mailing_State);  set('11mailZip',  d.Mailing_Zip_Code);
+    set('8mailStreet', d.Mailing_Street);
+    set('9mailCity',   d.Mailing_City);
+    set('10mailState', d.Mailing_State);
+    set('11mailZip',   d.Mailing_Zip_Code);
   }
-  set('13bizPhone', d.Business_Phone_Number); set('20eMail', d.Email);
-  set('16usdotNumber', d.USDOT); set('17mcmxNumber', d.MC_Number); set('19irsNumber', d.EIN_Number_or_S_S);
-  const isInter = d.Interstate===true||String(d.Interstate)==='true'||(d.Type_of_Authority_You_are_Applying_for||'').toLowerCase().includes('common carrier')||(d.Package_Requested||'').toLowerCase().includes('interstate');
-  const isIntra = d.Intrastate===true||String(d.Intrastate)==='true'||(d.Package_Requested||'').toLowerCase().includes('intrastate');
-  if (isInter) f['22aBox']='/Yes'; if (isIntra) f['22cBox']='/Yes';
-  if (!f['22aBox']&&!f['22cBox']) f['22aBox']='/Yes';
-  f['23aBox']='/Yes'; f['24aBox']='/Yes'; f['Reason Button']='/0'; f['Revoke Button']='/1';
+
+  set('13bizPhone',    d.Business_Phone_Number);
+  set('20eMail',       d.Email);
+  set('16usdotNumber', d.USDOT);
+  set('17mcmxNumber',  d.MC_Number);
+  set('19irsNumber',   d.EIN_Number_or_S_S);
+
+  const auth = (d.Type_of_Authority_You_are_Applying_for || '').toLowerCase();
+  const pkg  = (d.Package_Requested || '').toLowerCase();
+  const isInter = d.Interstate === true || auth.includes('common carrier') || auth.includes('interstate') || pkg.includes('interstate');
+  const isIntra = d.Intrastate === true || pkg.includes('intrastate');
+  if (isInter) f['22aBox'] = '/Yes';
+  if (isIntra) f['22cBox'] = '/Yes';
+  if (!f['22aBox'] && !f['22cBox']) f['22aBox'] = '/Yes';
+
+  f['23aBox'] = '/Yes';
+  f['24aBox'] = '/Yes';
+  f['Reason Button'] = '/0';
+  f['Revoke Button'] = '/1';
+
   if (d.Straight_Trucks_Owned)        set('straightOwn', String(d.Straight_Trucks_Owned));
   if (d.Truck_Tractors_Owned)         set('tractorOwn',  String(d.Truck_Tractors_Owned));
   if (d.Number_of_Interstate_Haulers) set('interBeyond', String(d.Number_of_Interstate_Haulers));
   if (d.Number_of_Intrastate_Drivers) set('intraBeyond', String(d.Number_of_Intrastate_Drivers));
-  const tot = (d.Number_of_Interstate_Haulers||0)+(d.Number_of_Intrastate_Drivers||0);
-  if (tot>0) set('totalDrivers', String(tot));
-  const owner1 = d.Owner_1_Full_Name || d.Contact_Name?.name || d.Contact_Name || '';
+  const tot = (d.Number_of_Interstate_Haulers || 0) + (d.Number_of_Intrastate_Drivers || 0);
+  if (tot > 0) set('totalDrivers', String(tot));
+
+  const owner1 = d.Owner_1_Full_Name || (d.Contact_Name && d.Contact_Name.name) || '';
   const title1 = d.Applicant_Title1 || 'Owner';
-  set('officerName1', owner1); set('officerTitle1', title1);
-  if (d.Owner_2_Full_Name) { set('officerName2', d.Owner_2_Full_Name); set('officerTitle2', title1); }
-  set('certifyName', owner1); set('certifyTitle', title1);
+  set('officerName1',  owner1);
+  set('officerTitle1', title1);
+  if (d.Owner_2_Full_Name) {
+    set('officerName2', d.Owner_2_Full_Name);
+    set('officerTitle2', title1);
+  }
+  set('certifyName',  owner1);
+  set('certifyTitle', title1);
   return f;
 }
 
 async function generatePDF(deal) {
-  const proxy = `${WORKER}?action=pdf`;
-  const resp  = await fetch(proxy);
-  if (!resp.ok) throw new Error('Could not download MCS-150 form from FMCSA.');
-  const pdfDoc = await PDFLib.PDFDocument.load(await resp.arrayBuffer(), { ignoreEncryption: true });
+  const resp = await fetch(PDF_URL);
+  if (!resp.ok) throw new Error(`Could not load form PDF (${resp.status}). Make sure MCS-150-Form.pdf is uploaded to the GitHub repo.`);
+  const bytes  = await resp.arrayBuffer();
+  const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
   const form   = pdfDoc.getForm();
   const fv     = mapToMCS150(deal);
+
   for (const field of form.getFields()) {
-    const name = field.getName(), val = fv[name];
+    const name = field.getName();
+    const val  = fv[name];
     if (!val) continue;
     try {
       const t = field.constructor.name;
-      if      (t==='PDFTextField')                  field.setText(val);
-      else if (t==='PDFCheckBox'&&val==='/Yes')      field.check();
-      else if (t==='PDFRadioGroup') try{field.select(val);}catch{}
+      if      (t === 'PDFTextField')                    field.setText(val);
+      else if (t === 'PDFCheckBox' && val === '/Yes')   field.check();
+      else if (t === 'PDFRadioGroup') { try { field.select(val); } catch {} }
     } catch {}
   }
   form.flatten();
   return pdfDoc.save();
+}
+
+function downloadPDF(bytes, dealName) {
+  const name = (dealName || 'client').replace(/[^a-zA-Z0-9]/g, '_');
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `MCS-150_${name}.pdf`;
+  a.click();
 }
 
 const app = document.getElementById('app');
@@ -148,7 +190,7 @@ function renderSearch(err) {
     renderLoading(`Searching for "${q}"…`);
     try {
       const results = await searchDeals(q);
-      if (!results.length) renderSearch(`No deals found for "${q}". Try a different name.`);
+      if (!results.length) renderSearch(`No deals found for "${q}".`);
       else renderPick(results);
     } catch(e) { renderSearch('Error: ' + e.message); }
   };
@@ -175,7 +217,7 @@ function renderPick(results) {
         <span style="color:#94a3b8;font-size:20px">›</span>
       </div>`).join('')}
     </div>`;
-  document.getElementById('bb').onclick = renderSearch;
+  document.getElementById('bb').onclick = () => renderSearch();
   document.querySelectorAll('.result-item').forEach(el => {
     el.onclick = async () => {
       renderLoading('Loading ' + el.querySelector('.result-name').textContent + '…');
@@ -186,7 +228,7 @@ function renderPick(results) {
 }
 
 function renderPreview(deal) {
-  const owner1  = deal.Owner_1_Full_Name || deal.Contact_Name?.name || deal.Contact_Name || '—';
+  const owner1  = deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '—';
   const mailing = deal.Mailing_Street ? [deal.Mailing_Street,[deal.Mailing_City,deal.Mailing_State,deal.Mailing_Zip_Code].filter(Boolean).join(', ')].filter(Boolean).join(', ') : 'Same as physical';
   app.innerHTML = `
     <div class="card">
@@ -213,24 +255,22 @@ function renderPreview(deal) {
       <div class="section">
         <div class="section-label">Contact &amp; Operations</div>
         ${fRow('Phone',deal.Business_Phone_Number)}${fRow('Email',deal.Email)}${fRow('Authority',deal.Type_of_Authority_You_are_Applying_for)}${fRow('Package',deal.Package_Requested)}
-        ${fRow('Trucks',[deal.Straight_Trucks_Owned&&deal.Straight_Trucks_Owned+' straight',deal.Truck_Tractors_Owned&&deal.Truck_Tractors_Owned+' tractors'].filter(Boolean).join(', '))}
-        ${fRow('Drivers',[deal.Number_of_Interstate_Haulers&&deal.Number_of_Interstate_Haulers+' interstate',deal.Number_of_Intrastate_Drivers&&deal.Number_of_Intrastate_Drivers+' intrastate'].filter(Boolean).join(', '))}
       </div>
       <p class="hint">Blank fields (carrier mileage, signature, date) can be completed manually after downloading.</p>
       <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Prefilled MCS-150</button>
       <div id="ge" class="error-box" style="display:none"></div>
     </div>`;
-  document.getElementById('bb').onclick = renderSearch;
+  document.getElementById('bb').onclick = () => renderSearch();
   document.getElementById('gb').onclick = async () => {
     const btn = document.getElementById('gb');
     btn.disabled=true; btn.textContent='Generating PDF…';
     try {
       const bytes = await generatePDF(deal);
-      const name  = (deal.Deal_Name||'client').replace(/[^a-zA-Z0-9]/g,'_');
-      Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([bytes],{type:'application/pdf'})),download:`MCS-150_${name}.pdf`}).click();
+      downloadPDF(bytes, deal.Deal_Name);
       renderDone(deal);
     } catch(e) {
-      const err=document.getElementById('ge'); err.style.display='block'; err.textContent='Error: '+e.message;
+      const err = document.getElementById('ge');
+      err.style.display='block'; err.textContent='Error: ' + e.message;
       btn.disabled=false; btn.textContent='⬇ Generate & Download Prefilled MCS-150';
     }
   };
@@ -247,17 +287,13 @@ function renderDone(deal) {
         <button class="btn btn-ghost" id="rb">Re-download PDF</button>
       </div>
     </div>`;
-  document.getElementById('ab').onclick = renderSearch;
+  document.getElementById('ab').onclick = () => renderSearch();
   document.getElementById('rb').onclick = async () => {
-    try {
-      const bytes = await generatePDF(deal);
-      const name  = (deal.Deal_Name||'client').replace(/[^a-zA-Z0-9]/g,'_');
-      Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([bytes],{type:'application/pdf'})),download:`MCS-150_${name}.pdf`}).click();
-    } catch(e) { alert('Error: '+e.message); }
+    try { downloadPDF(await generatePDF(deal), deal.Deal_Name); }
+    catch(e) { alert('Error: '+e.message); }
   };
 }
 
-// Init — support ?id= from Zoho button
 (async () => {
   const id = new URLSearchParams(window.location.search).get('id');
   if (id) {
