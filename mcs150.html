@@ -139,7 +139,7 @@ function mapToMCS150(d) {
 }
 
 async function generatePDF(deal) {
-  const resp = await fetch(PDF_URL);
+  const resp = await fetch(PDF_URL, { cache: 'reload' });
   if (!resp.ok) throw new Error(`Could not load form PDF (${resp.status}). Make sure MCS-150-Form.pdf is uploaded to the GitHub repo.`);
   const bytes  = await resp.arrayBuffer();
   const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
@@ -151,10 +151,9 @@ async function generatePDF(deal) {
     const val  = fv[name];
     if (!val) continue;
     try {
-      const t = field.constructor.name;
-      if      (t === 'PDFTextField')                    field.setText(val);
-      else if (t === 'PDFCheckBox' && val === '/Yes')   field.check();
-      else if (t === 'PDFRadioGroup') { try { field.select(val); } catch {} }
+      if      (field instanceof PDFLib.PDFTextField)                  field.setText(val);
+      else if (field instanceof PDFLib.PDFCheckBox && val === '/Yes') field.check();
+      else if (field instanceof PDFLib.PDFRadioGroup) { try { field.select(val); } catch {} }
     } catch {}
   }
   form.flatten();
