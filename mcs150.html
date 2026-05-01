@@ -230,6 +230,9 @@ async function generatePDF(deal, extras) {
   const bytes  = await resp.arrayBuffer();
   const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
   const form   = pdfDoc.getForm();
+  // Embed Helvetica so updateAppearances works for fields with non-standard /DA
+  // (totalDrivers/totalCDL have calc-related DA strings pdf-lib can't auto-resolve).
+  const helv   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
   const fv     = mapToMCS150(deal, extras);
 
   // Strip blockers (ReadOnly + Calculate/Format actions) from fields that have
@@ -259,7 +262,7 @@ async function generatePDF(deal, extras) {
   // remaining fields (officer signature, hazmat-specific checkboxes, etc.) and adjust
   // pre-filled values if Zoho data is stale.
   // Tell PDF viewers to regenerate field appearances for all the values we just set.
-  form.getFields().forEach(f => { try { f.updateAppearances(); } catch {} });
+  form.getFields().forEach(f => { try { f.updateAppearances(helv); } catch {} });
   return pdfDoc.save();
 }
 
