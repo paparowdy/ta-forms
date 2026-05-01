@@ -63,20 +63,59 @@
 const WORKER  = 'https://zoho-proxy.oscarmh00.workers.dev';
 const PDF_URL = 'MCS-150-Form.pdf';
 
-async function searchDeals(q) {
-  const res = await fetch(`${WORKER}?action=search&word=${encodeURIComponent(q)}`);
-  if (!res.ok) throw new Error('Search request failed.');
+class AuthRequiredError extends Error {
+  constructor() { super('Sign-in required'); this.name = 'AuthRequiredError'; }
+}
+
+async function callWorker(url) {
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'include' });
+  } catch (e) {
+    // CORS / network error from Cloudflare Access redirect to login
+    throw new AuthRequiredError();
+  }
+  if (res.status === 401 || res.status === 403 || res.redirected) {
+    throw new AuthRequiredError();
+  }
+  if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('json')) {
+    // Likely a Cloudflare login page HTML body
+    throw new AuthRequiredError();
+  }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function searchDeals(q) {
+  const data = await callWorker(`${WORKER}?action=search&word=${encodeURIComponent(q)}`);
   return Array.isArray(data) ? data : [];
 }
 
 async function fetchDeal(id) {
-  const res = await fetch(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error('Could not load deal.');
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
+  return callWorker(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
+}
+
+function renderSignIn(retryFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="card-title">Sign-in required</div>
+      <p style="font-size:14px;color:#475569;margin-bottom:16px">
+        Sign in with your <b>@truckersauthority.com</b> account to use the MCS-150 tool.
+      </p>
+      <button class="btn btn-primary" id="signin">Sign in via Cloudflare</button>
+      <p class="hint" style="margin-top:14px">
+        After signing in, the tab will close and you'll be back here automatically.
+      </p>
+    </div>`;
+  document.getElementById('signin').onclick = () => {
+    const w = window.open(WORKER, 'tasignin', 'width=520,height=640');
+    const t = setInterval(() => {
+      if (!w || w.closed) { clearInterval(t); if (retryFn) retryFn(); else location.reload(); }
+    }, 500);
+  };
 }
 
 function mapToMCS150(d) {
@@ -191,7 +230,7 @@ function renderSearch(err) {
       const results = await searchDeals(q);
       if (!results.length) renderSearch(`No deals found for "${q}".`);
       else renderPick(results);
-    } catch(e) { renderSearch('Error: ' + e.message); }
+    } catch(e) { if (e instanceof AuthRequiredError) renderSignIn(go); else renderSearch('Error: ' + e.message); }
   };
   document.getElementById('sb').onclick = go;
   document.getElementById('si').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
@@ -298,7 +337,10 @@ function renderDone(deal) {
   if (id) {
     renderLoading('Loading deal from Zoho CRM…');
     try { renderPreview(await fetchDeal(id)); }
-    catch(e) { renderSearch('Could not load deal: ' + e.message); }
+    catch(e) {
+      if (e instanceof AuthRequiredError) renderSignIn(async () => { renderLoading('Loading deal from Zoho CRM…'); try { renderPreview(await fetchDeal(id)); } catch(err) { renderSearch('Could not load deal: ' + err.message); } });
+      else renderSearch('Could not load deal: ' + e.message);
+    }
   } else {
     renderSearch();
   }
