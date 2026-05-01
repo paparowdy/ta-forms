@@ -232,6 +232,19 @@ async function generatePDF(deal, extras) {
   const form   = pdfDoc.getForm();
   const fv     = mapToMCS150(deal, extras);
 
+  // Strip blockers (ReadOnly + Calculate/Format actions) from fields that have
+  // auto-calc or comb formatting — otherwise pdf-lib's setText doesn't render them.
+  // Specifically affects: totalDrivers (ReadOnly + Calc), totalCDL (Format/Validate).
+  ['totalDrivers', 'totalCDL'].forEach(name => {
+    try {
+      const tf = form.getTextField(name);
+      try { tf.disableReadOnly(); } catch {}
+      const af = tf.acroField;
+      try { af.setFlags(af.getFlags() & ~(1 << 23)); } catch {} // clear Comb (bit 23)
+      try { af.dict.delete(PDFLib.PDFName.of('AA')); } catch {} // remove auto-calc/format scripts
+    } catch {}
+  });
+
   for (const field of form.getFields()) {
     const name = field.getName();
     const val  = fv[name];
