@@ -118,10 +118,12 @@ function renderSignIn(retryFn) {
   };
 }
 
-function mapToMCS150(d) {
+function mapToMCS150(d, extras) {
+  extras = extras || {};
   const f = {};
   const set = (id, val) => { if (val != null && String(val).trim()) f[id] = String(val).trim(); };
 
+  // Identity
   set('1bizName',         d.Deal_Name);
   set('2dbaName',         d.DBA);
   set('3principalStreet', d.Physical_Street);
@@ -129,8 +131,11 @@ function mapToMCS150(d) {
   set('5principalState',  d.Physical_State);
   set('6principalZip',    d.Physical_Zip);
 
+  // Mailing — radio uses pdf-lib option labels (not /0 //1)
   const sameMail = d.Mailing_Street === d.Physical_Street && d.Mailing_City === d.Physical_City;
-  f['Mailing Button'] = (sameMail || !d.Mailing_Street) ? '/0' : '/1';
+  f['Mailing Button'] = (sameMail || !d.Mailing_Street)
+    ? 'Same as Principal Address'
+    : 'Please enter mailing address below.';
   if (!sameMail && d.Mailing_Street) {
     set('8mailStreet', d.Mailing_Street);
     set('9mailCity',   d.Mailing_City);
@@ -144,6 +149,7 @@ function mapToMCS150(d) {
   set('17mcmxNumber',  d.MC_Number);
   set('19irsNumber',   d.EIN_Number_or_S_S);
 
+  // Section 22 — Company Operations checkboxes
   const auth = (d.Type_of_Authority_You_are_Applying_for || '').toLowerCase();
   const pkg  = (d.Package_Requested || '').toLowerCase();
   const isInter = d.Interstate === true || auth.includes('common carrier') || auth.includes('interstate') || pkg.includes('interstate');
@@ -151,51 +157,96 @@ function mapToMCS150(d) {
   if (isInter) f['22aBox'] = '/Yes';
   if (isIntra) f['22cBox'] = '/Yes';
   if (!f['22aBox'] && !f['22cBox']) f['22aBox'] = '/Yes';
-
   f['23aBox'] = '/Yes';
   f['24aBox'] = '/Yes';
-  f['Reason Button'] = '/0';
-  f['Revoke Button'] = '/1';
 
-  if (d.Straight_Trucks_Owned)        set('straightOwn', String(d.Straight_Trucks_Owned));
-  if (d.Truck_Tractors_Owned)         set('tractorOwn',  String(d.Truck_Tractors_Owned));
-  if (d.Number_of_Interstate_Haulers) set('interBeyond', String(d.Number_of_Interstate_Haulers));
-  if (d.Number_of_Intrastate_Drivers) set('intraBeyond', String(d.Number_of_Intrastate_Drivers));
-  const tot = (d.Number_of_Interstate_Haulers || 0) + (d.Number_of_Intrastate_Drivers || 0);
-  if (tot > 0) set('totalDrivers', String(tot));
+  // Reason for Filing & Revocation — radios use pdf-lib option labels
+  f['Reason Button'] = extras.reason || 'New Application';
+  f['Revoke Button'] = 'No';
 
+  // Section 21 — Carrier Mileage (from pre-flight prompt)
+  if (extras.mileage) set('21carrierMileage', String(extras.mileage));
+
+  // === Section 26a: 15 cargo/passenger columns × 3 rows (Owned / Term-Leased / Trip-Leased) ===
+  // Auto-zero every cell unless Zoho specifies a value
+  const colMap = {
+    'straight':   d.Straight_Trucks_Owned,
+    'tractor':    d.Truck_Tractors_Owned,
+    'trailer':    null,
+    'haztruck':   null,
+    'haztrail':   null,
+    'coach':      null,
+    'school1-8':  null,
+    'school9-15': null,
+    'school16+':  null,
+    'bus16+':     null,
+    'van1-8':     null,
+    'van9-15':    null,
+    'limo1-8':    null,
+    'limo9-15':   null,
+    'limo16+':    null,
+  };
+  for (const [col, owned] of Object.entries(colMap)) {
+    set(col + 'Own',  (owned != null && owned !== '') ? String(owned) : '0');
+    set(col + 'Term', '0');
+    set(col + 'Trip', '0');
+  }
+
+  // Section 26b — Non-CMV
+  set('non-CMV', '0');
+
+  // === Section 27: Driver matrix — auto-zero unspecified cells ===
+  const interBeyond = Number(d.Number_of_Interstate_Haulers || 0);
+  const intraBeyond = Number(d.Number_of_Intrastate_Drivers || 0);
+  set('interBeyond', String(interBeyond));
+  set('intraBeyond', String(intraBeyond));
+  set('interWithin', '0');
+  set('intraWithin', '0');
+  const tot = interBeyond + intraBeyond;
+  set('totalDrivers', String(tot));
+  set('totalCDL', String(extras.totalCDL != null && extras.totalCDL !== '' ? extras.totalCDL : tot));
+
+  // Owners & certification
   const owner1 = d.Owner_1_Full_Name || (d.Contact_Name && d.Contact_Name.name) || '';
   const title1 = d.Applicant_Title1 || 'Owner';
   set('officerName1',  owner1);
   set('officerTitle1', title1);
   if (d.Owner_2_Full_Name) {
-    set('officerName2', d.Owner_2_Full_Name);
+    set('officerName2',  d.Owner_2_Full_Name);
     set('officerTitle2', title1);
   }
   set('certifyName',  owner1);
   set('certifyTitle', title1);
+  // Today's date in MM/DD/YYYY
+  const td = new Date();
+  set('certifyDate', String(td.getMonth()+1).padStart(2,'0') + '/' + String(td.getDate()).padStart(2,'0') + '/' + td.getFullYear());
+
   return f;
 }
 
-async function generatePDF(deal) {
+async function generatePDF(deal, extras) {
   const resp = await fetch(PDF_URL, { cache: 'reload' });
   if (!resp.ok) throw new Error(`Could not load form PDF (${resp.status}). Make sure MCS-150-Form.pdf is uploaded to the GitHub repo.`);
   const bytes  = await resp.arrayBuffer();
   const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
   const form   = pdfDoc.getForm();
-  const fv     = mapToMCS150(deal);
+  const fv     = mapToMCS150(deal, extras);
 
   for (const field of form.getFields()) {
     const name = field.getName();
     const val  = fv[name];
-    if (!val) continue;
+    if (val == null || val === '') continue;
     try {
       if      (field instanceof PDFLib.PDFTextField)                  field.setText(val);
       else if (field instanceof PDFLib.PDFCheckBox && val === '/Yes') field.check();
       else if (field instanceof PDFLib.PDFRadioGroup) { try { field.select(val); } catch {} }
     } catch {}
   }
-  form.flatten();
+  // NOTE: do NOT flatten — staff need the PDF editable so they can tab through any
+  // remaining fields (officer signature, hazmat-specific checkboxes, etc.) and adjust
+  // pre-filled values if Zoho data is stale.
+  // Tell PDF viewers to regenerate field appearances for all the values we just set.
+  form.getFields().forEach(f => { try { f.updateAppearances(); } catch {} });
   return pdfDoc.save();
 }
 
@@ -294,7 +345,28 @@ function renderPreview(deal) {
         <div class="section-label">Contact &amp; Operations</div>
         ${fRow('Phone',deal.Business_Phone_Number)}${fRow('Email',deal.Email)}${fRow('Authority',deal.Type_of_Authority_You_are_Applying_for)}${fRow('Package',deal.Package_Requested)}
       </div>
-      <p class="hint">Blank fields (carrier mileage, signature, date) can be completed manually after downloading.</p>
+      <div class="section" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 16px;margin-top:8px">
+        <div class="section-label" style="color:#0369a1">Quick fill — last 12 months</div>
+        <div class="field-row" style="border:none;padding:5px 0">
+          <span class="field-label" style="width:200px">Carrier mileage</span>
+          <input type="number" id="pf_mileage" placeholder="e.g. 50000" style="flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;font-size:13px">
+        </div>
+        <div class="field-row" style="border:none;padding:5px 0">
+          <span class="field-label" style="width:200px">Total CDL drivers</span>
+          <input type="number" id="pf_cdl" placeholder="defaults to total drivers" style="flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;font-size:13px">
+        </div>
+        <div class="field-row" style="border:none;padding:5px 0">
+          <span class="field-label" style="width:200px">Reason for filing</span>
+          <select id="pf_reason" style="flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;font-size:13px">
+            <option>New Application</option>
+            <option>Biennial Update or Changes</option>
+            <option>Reapplication (after revocation of new entrant)</option>
+            <option>Reactivate</option>
+            <option>Out of Business Notification</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint">PDF stays editable after download — tab through any remaining fields, then save.</p>
       <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Prefilled MCS-150</button>
       <div id="ge" class="error-box" style="display:none"></div>
     </div>`;
@@ -302,10 +374,15 @@ function renderPreview(deal) {
   document.getElementById('gb').onclick = async () => {
     const btn = document.getElementById('gb');
     btn.disabled=true; btn.textContent='Generating PDF…';
+    const extras = {
+      mileage:  document.getElementById('pf_mileage').value.trim(),
+      totalCDL: document.getElementById('pf_cdl').value.trim(),
+      reason:   document.getElementById('pf_reason').value,
+    };
     try {
-      const bytes = await generatePDF(deal);
+      const bytes = await generatePDF(deal, extras);
       downloadPDF(bytes, deal.Deal_Name);
-      renderDone(deal);
+      renderDone(deal, extras);
     } catch(e) {
       const err = document.getElementById('ge');
       err.style.display='block'; err.textContent='Error: ' + e.message;
@@ -314,7 +391,7 @@ function renderPreview(deal) {
   };
 }
 
-function renderDone(deal) {
+function renderDone(deal, extras) {
   app.innerHTML = `
     <div class="card">
       <div class="success-box">
@@ -327,7 +404,7 @@ function renderDone(deal) {
     </div>`;
   document.getElementById('ab').onclick = () => renderSearch();
   document.getElementById('rb').onclick = async () => {
-    try { downloadPDF(await generatePDF(deal), deal.Deal_Name); }
+    try { downloadPDF(await generatePDF(deal, extras), deal.Deal_Name); }
     catch(e) { alert('Error: '+e.message); }
   };
 }
