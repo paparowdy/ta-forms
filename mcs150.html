@@ -203,8 +203,9 @@ function mapToMCS150(d, extras) {
   set('interWithin', '0');
   set('intraWithin', '0');
   const tot = interBeyond + intraBeyond;
-  set('totalDrivers', String(tot));
-  set('totalCDL', String(extras.totalCDL != null && extras.totalCDL !== '' ? extras.totalCDL : tot));
+  // totalDrivers / totalCDL are intentionally NOT auto-filled — they're left
+  // editable in the PDF for manual entry (see generatePDF strip block).
+  // (If pre-flight CDL was entered, ignored here for now; revisit later.)
 
   // Owners & certification
   const owner1 = d.Owner_1_Full_Name || (d.Contact_Name && d.Contact_Name.name) || '';
@@ -235,16 +236,14 @@ async function generatePDF(deal, extras) {
   const helv   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
   const fv     = mapToMCS150(deal, extras);
 
-  // Strip blockers (ReadOnly + Calculate/Format actions) from fields that have
-  // auto-calc or comb formatting — otherwise pdf-lib's setText doesn't render them.
-  // Specifically affects: totalDrivers (ReadOnly + Calc), totalCDL (Format/Validate).
+  // Make totalDrivers and totalCDL hand-editable in the downloaded PDF.
+  // pdf-lib's setText + updateAppearances doesn't reliably render these two
+  // (ReadOnly + Comb + Calc/Format actions interact badly), so we leave them
+  // empty for the user to fill in the viewer.
   ['totalDrivers', 'totalCDL'].forEach(name => {
     try {
       const tf = form.getTextField(name);
       try { tf.disableReadOnly(); } catch {}
-      const af = tf.acroField;
-      try { af.setFlags(af.getFlags() & ~(1 << 23)); } catch {} // clear Comb (bit 23)
-      try { af.dict.delete(PDFLib.PDFName.of('AA')); } catch {} // remove auto-calc/format scripts
     } catch {}
   });
 
