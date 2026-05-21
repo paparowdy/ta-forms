@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCE-46 Auto-Fill — Truckers Authority</title>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="logo" title="All Forms">TA</a>
+  <div>
+    <h1>OCE-46 Auto-Fill</h1>
+    <p>Truckers Authority · FMCSA Request for Operating Authority</p>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script src="shared/filler.js"></script>
+<script>
+const PDF_URL = 'OCE-46-Form.pdf';
+
+function mapToOCE46(deal) {
+  const f = {};
+  const set = (id, val) => { if (val != null && String(val).trim()) f[id] = String(val).trim(); };
+
+  set('Docket Number',   deal.MC_Number);
+  set('Name of Request', deal.Deal_Name);
+  set('Street Address',  deal.Physical_Street);
+  set('City Address',    deal.Physical_City);
+  // State Address is a /Ch dropdown — set value matches dropdown option text
+  set('State Address',   deal.Physical_State);
+  set('Zip Code',        deal.Physical_Zip);
+  set('Name of Person',  deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '');
+  set('Phone Number',    deal.Business_Phone_Number);
+
+  // Authority checkboxes — check based on Type_of_Authority_You_are_Applying_for
+  const auth = (deal.Type_of_Authority_You_are_Applying_for || '').toLowerCase();
+  const pkg  = (deal.Package_Requested || '').toLowerCase();
+  const authStr = auth + ' ' + pkg;
+
+  if (authStr.includes('common'))   f['Common Authority']   = true;
+  if (authStr.includes('contract')) f['Contract Authority'] = true;
+  if (authStr.includes('broker'))   f['Broker Authority']   = true;
+
+  // Default to Common if none matched (most TA clients are common authority carriers)
+  if (!f['Common Authority'] && !f['Contract Authority'] && !f['Broker Authority']) {
+    f['Common Authority'] = true;
+  }
+
+  // Leave blank: Reason for Request, notary fields, signature, Signer Signature,
+  // Submit dates, FMCSA staff fields.
+  return f;
+}
+
+function authorityChecks(deal) {
+  const auth = (deal.Type_of_Authority_You_are_Applying_for || '').toLowerCase();
+  const pkg  = (deal.Package_Requested || '').toLowerCase();
+  const str  = auth + ' ' + pkg;
+  const common   = str.includes('common')   || (!str.includes('contract') && !str.includes('broker'));
+  const contract = str.includes('contract');
+  const broker   = str.includes('broker');
+  return [common?'✓ Common':'— Common', contract?'✓ Contract':'— Contract', broker?'✓ Broker':'— Broker'].join('  ');
+}
+
+function renderPreview(deal) {
+  const owner = ownerName(deal);
+
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div><div class="card-title" style="margin-bottom:0">Confirm data</div><div class="deal-title">${deal.Deal_Name}</div></div>
+        <button class="btn btn-ghost" id="bb">← Back</button>
+      </div>
+      ${!deal.Owner_1_Full_Name ? `<div class="warn-box">⚠ Owner 1 Full Name is blank — using Contact Name as fallback.</div>` : ''}
+      <div class="owner-box">
+        <div class="section-label">Applicant</div>
+        ${fRow('Name of Person', owner)}
+        ${fRow('Phone Number',   deal.Business_Phone_Number)}
+        ${fRow('Docket Number',  deal.MC_Number)}
+      </div>
+      <div class="section">
+        <div class="section-label">Company</div>
+        ${fRow('Name of Request', deal.Deal_Name)}
+        ${fRow('Street Address',  deal.Physical_Street)}
+        ${fRow('City / State',    [deal.Physical_City, deal.Physical_State, deal.Physical_Zip].filter(Boolean).join(', '))}
+      </div>
+      <div class="section">
+        <div class="section-label">Authority Checkboxes</div>
+        <div class="field-row" style="border:none"><span class="field-value" style="font-family:monospace">${authorityChecks(deal)}</span></div>
+        <p class="hint">Based on "Type of Authority" and "Package Requested" in the Deal. Adjust manually if needed.</p>
+      </div>
+      <div class="warn-box">
+        ⚠ Leave <b>Reason for Request</b>, <b>notary fields</b>, and <b>signature</b> blank — those are filled at notarization.
+      </div>
+      <p class="hint">The PDF stays editable after download.</p>
+      <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Prefilled OCE-46</button>
+      <div id="ge" class="error-box" style="display:none"></div>
+    </div>`;
+
+  document.getElementById('bb').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('gb').onclick = async () => {
+    const btn = document.getElementById('gb');
+    btn.disabled = true; btn.textContent = 'Generating PDF…';
+    try {
+      const bytes = await fillPDF(PDF_URL, mapToOCE46(deal));
+      downloadPDF(bytes, 'OCE-46', deal.Deal_Name);
+      renderDone(deal);
+    } catch(e) {
+      const err = document.getElementById('ge');
+      err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
+      btn.disabled = false; btn.textContent = '⬇ Generate & Download Prefilled OCE-46';
+    }
+  };
+}
+
+function renderDone(deal) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="success-box">
+        <div class="check-circle">✓</div>
+        <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">OCE-46 Downloaded!</h2>
+        <p style="color:#64748b;font-size:14px;margin-bottom:24px">${deal.Deal_Name}</p>
+        <button class="btn btn-primary" id="ab" style="margin-right:8px">Generate Another</button>
+        <button class="btn btn-ghost" id="rb">Re-download PDF</button>
+      </div>
+    </div>`;
+  document.getElementById('ab').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('rb').onclick = async () => {
+    try { downloadPDF(await fillPDF(PDF_URL, mapToOCE46(deal)), 'OCE-46', deal.Deal_Name); }
+    catch(e) { alert('Error: ' + e.message); }
+  };
+}
+
+bootWithIdParam(renderPreview, renderPreview);
+</script>
+</body>
+</html>

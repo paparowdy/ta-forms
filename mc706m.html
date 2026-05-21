@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CA MCP (MC 706 M) Auto-Fill — Truckers Authority</title>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="logo" title="All Forms">TA</a>
+  <div>
+    <h1>CA MCP — MC 706 M Auto-Fill</h1>
+    <p>Truckers Authority · California Motor Carrier Permit</p>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script src="shared/filler.js"></script>
+<script>
+const PDF_URL = 'MC-706-M-CA-MCP.pdf';
+
+// ─── Field Map ────────────────────────────────────────────────────────────────
+// Field positions confirmed via pypdf inspection (page 5-10 are the actual form;
+// pages 1-4 are instructions). Generic field names mapped by bounding-box position.
+// Duplicate-named fields ("0","1") are skipped — those must be filled manually.
+// See shared/mc706m-field-map.json for full documentation.
+
+function mapToMC706M(deal) {
+  const f = {};
+  const set = (id, val) => { if (val != null && String(val).trim()) f[id] = String(val).trim(); };
+
+  const biz    = deal.Business_Structure || '';
+  const bizLow = biz.toLowerCase();
+  const owner1 = deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '';
+  const owner2 = deal.Owner_2_Full_Name || '';
+  const ein    = deal.EIN_Number_or_S_S || '';
+  const title  = deal.Applicant_Title1 || 'Owner';
+
+  // ── Section 2: Entity type (check exactly ONE box) ──────────────────────────
+  if (bizLow.includes('llc') || bizLow.includes('limited liability')) {
+    f['Check Box20'] = true;                  // 2C — LLC
+    set('Text21', deal.Deal_Name);            // LLC Name
+    set('Text22', ein);                       // FEIN
+    set('Text23', owner1);                    // Managing Member
+    if (owner2) set('Text24', owner2);        // All Members
+
+  } else if (bizLow.includes('corp')) {
+    f['Check Box11'] = true;                  // 2B — Corporation
+    set('Text12', deal.Deal_Name);            // Corp Name
+    set('Text13', ein);                       // FEIN
+    set('Text14', owner1);                    // Principal Officer
+    set('Text15', title);                     // Title
+    if (owner2) set('Text16', owner2);        // Officer 2
+
+  } else if (bizLow.includes('partner')) {
+    f['Check Box25'] = true;                  // 2D — Partnership
+    set('Text26', deal.Deal_Name);            // Partnership Name
+    set('Text27', ein);                       // FEIN
+    set('Text28', owner1);                    // General/Managing Partner
+
+  } else {
+    // Default: Sole Proprietor (2A)
+    f['Check Box6'] = true;
+    set('Text7',  owner1);                    // Individual Legal Name
+    set('Text8',  ein);                       // FEIN / SSN
+  }
+
+  // ── Section 3: DBA / Trade Name ─────────────────────────────────────────────
+  set('Text30', deal.DBA);                    // DBA trade name
+
+  // ── Section 4: Principal Place of Business ───────────────────────────────────
+  // Note: Duplicate-named "0"/"1" address fields cannot be set individually via pdf-lib.
+  // Physical and mailing addresses must be filled manually in the downloaded PDF.
+  // Text31 (same row as DBA) is likely the business phone at top of form.
+  set('Text31', deal.Business_Phone_Number);  // Phone (near top of form)
+
+  // ── Section 7: Operating Authority ──────────────────────────────────────────
+  const isInter = deal.Interstate === true;
+  const isIntra = deal.Intrastate === true && deal.Interstate !== true;
+  if (isIntra) f['Check Box7'] = true;        // INTRASTATE
+  if (isInter) f['Check Box8'] = true;        // INTERSTATE
+  if (!isInter && !isIntra) f['Check Box8'] = true; // default to interstate
+
+  set('Text83', deal.USDOT);                  // USDOT Number
+  set('Text1',  deal.MC_Number);              // MC/MFF Number
+
+  // ── Section 15: Certification ───────────────────────────────────────────────
+  set('Text75', owner1);                      // Printed Name
+  set('Text77', title);                       // Title
+  set('Text79', today());                     // Date
+
+  return f;
+}
+
+function entityLabel(deal) {
+  const biz = (deal.Business_Structure || '').toLowerCase();
+  if (biz.includes('llc'))     return 'LLC (Section 2C)';
+  if (biz.includes('corp'))    return 'Corporation (Section 2B)';
+  if (biz.includes('partner')) return 'Partnership (Section 2D)';
+  return 'Sole Proprietor (Section 2A)';
+}
+
+function renderPreview(deal) {
+  const owner = ownerName(deal);
+  const isCA  = (deal.Physical_State || '').toUpperCase() === 'CA' ||
+                (deal.Physical_State || '').toLowerCase() === 'california';
+
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div><div class="card-title" style="margin-bottom:0">Confirm data</div><div class="deal-title">${deal.Deal_Name}</div></div>
+        <button class="btn btn-ghost" id="bb">← Back</button>
+      </div>
+      ${!isCA ? `<div class="warn-box">⚠ This deal's Physical State is <b>${deal.Physical_State || '(blank)'}</b>, not CA. The CA MCP is for California carriers. Confirm this is the correct form.</div>` : ''}
+      ${!deal.Owner_1_Full_Name ? `<div class="warn-box">⚠ Owner 1 Full Name is blank — using Contact Name as fallback.</div>` : ''}
+      <div class="owner-box">
+        <div class="section-label">Certification — Section 15</div>
+        ${fRow('Printed Name', owner)}
+        ${fRow('Title', deal.Applicant_Title1 || 'Owner')}
+        ${fRow('Date', today())}
+      </div>
+      <div class="section">
+        <div class="section-label">Business Entity — Section 2</div>
+        ${fRow('Type',      entityLabel(deal))}
+        ${fRow('Name',      deal.Deal_Name)}
+        ${fRow('DBA',       deal.DBA)}
+        ${fRow('FEIN/EIN',  deal.EIN_Number_or_S_S)}
+        ${fRow('Owner 1',   deal.Owner_1_Full_Name)}
+        ${fRow('Owner 2',   deal.Owner_2_Full_Name)}
+      </div>
+      <div class="section">
+        <div class="section-label">Operating Authority — Section 7</div>
+        ${fRow('USDOT #',   deal.USDOT)}
+        ${fRow('MC #',      deal.MC_Number)}
+        ${fRow('Interstate',deal.Interstate ? 'Yes' : 'No')}
+        ${fRow('Intrastate',deal.Intrastate ? 'Yes' : 'No')}
+        ${fRow('Phone',     deal.Business_Phone_Number)}
+      </div>
+      <div class="warn-box">
+        ⚠ <b>Section 4 (Addresses) must be filled manually.</b> The MC 706 M uses duplicate internal field names that prevent automated address fill. Fill Physical and Mailing address in the PDF viewer after downloading.
+      </div>
+      <div class="warn-box" style="margin-top:0">
+        ⚠ Sections 1, 5–14 (application type, transportation activities, vehicles, fees, etc.) are left blank — fill per specific application requirements.
+      </div>
+      <p class="hint">The PDF stays editable after download. Fill remaining fields, then print or e-file.</p>
+      <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Prefilled CA MCP</button>
+      <div id="ge" class="error-box" style="display:none"></div>
+    </div>`;
+
+  document.getElementById('bb').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('gb').onclick = async () => {
+    const btn = document.getElementById('gb');
+    btn.disabled = true; btn.textContent = 'Generating PDF…';
+    try {
+      const bytes = await fillPDF(PDF_URL, mapToMC706M(deal));
+      downloadPDF(bytes, 'CA-MCP', deal.Deal_Name);
+      renderDone(deal);
+    } catch(e) {
+      const err = document.getElementById('ge');
+      err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
+      btn.disabled = false; btn.textContent = '⬇ Generate & Download Prefilled CA MCP';
+    }
+  };
+}
+
+function renderDone(deal) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="success-box">
+        <div class="check-circle">✓</div>
+        <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">CA MCP Downloaded!</h2>
+        <p style="color:#64748b;font-size:14px;margin-bottom:4px">${deal.Deal_Name}</p>
+        <p style="color:#92400e;font-size:12px;background:#fefce8;border:1px solid #fde68a;padding:8px 12px;border-radius:6px;margin-bottom:20px">Remember to fill Section 4 (Addresses) manually in the PDF before submitting.</p>
+        <button class="btn btn-primary" id="ab" style="margin-right:8px">Generate Another</button>
+        <button class="btn btn-ghost" id="rb">Re-download PDF</button>
+      </div>
+    </div>`;
+  document.getElementById('ab').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('rb').onclick = async () => {
+    try { downloadPDF(await fillPDF(PDF_URL, mapToMC706M(deal)), 'CA-MCP', deal.Deal_Name); }
+    catch(e) { alert('Error: ' + e.message); }
+  };
+}
+
+bootWithIdParam(renderPreview, renderPreview);
+</script>
+</body>
+</html>

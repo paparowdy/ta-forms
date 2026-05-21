@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCSA-5889 Auto-Fill — Truckers Authority</title>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="logo" title="All Forms">TA</a>
+  <div>
+    <h1>MCSA-5889 Auto-Fill</h1>
+    <p>Truckers Authority · Motor Carrier Records Change Request</p>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script src="shared/filler.js"></script>
+<script>
+const PDF_URL = 'MCSA-5889-Form.pdf';
+
+function mapToMCSA5889(deal) {
+  const f = {};
+  const set = (id, val) => { if (val != null && String(val).trim()) f[id] = String(val).trim(); };
+
+  // Section A — Carrier Information
+  set('legalName',      deal.Deal_Name);
+  set('dbaName',        deal.DBA);
+  set('docketNumber',   deal.MC_Number);
+  set('dotNumber',      deal.USDOT);
+  set('carrierAddress', deal.Physical_Street);
+  set('carrierCity',    deal.Physical_City);
+  // carrierState is a /Ch (dropdown) — try setting as text, falls back gracefully
+  set('carrierState',   deal.Physical_State);
+  set('carrierZip',     deal.Physical_Zip);
+  set('bizPhone',       deal.Business_Phone_Number);
+  set('carrierPhone',   deal.Business_Phone_Number);
+  set('requestEmail',   deal.Email);
+
+  // Applicant
+  const owner = deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '';
+  set('appName',  owner);
+  set('appTitle', deal.Applicant_Title1 || 'Owner');
+
+  // Date
+  set('formDate', today());
+
+  // Section B — Address change (mailing)
+  if (deal.Mailing_Street) {
+    set('mailAddress', deal.Mailing_Street);
+    set('mailCity',    deal.Mailing_City);
+    set('mailState',   deal.Mailing_State);
+    set('mailZip',     deal.Mailing_Zip_Code);
+    // newMailBox: check if mailing === physical (same-address flag)
+    const sameAddr = deal.Mailing_Street === deal.Physical_Street &&
+                     deal.Mailing_City    === deal.Physical_City;
+    if (sameAddr) f['newMailBox'] = true;
+  }
+
+  // Leave blank: Section C (legalNew, dbaNew, yesBox/noBox), Section D (reinstateBox),
+  // Section E (credit card), all signature fields, entity affiliation rows.
+  return f;
+}
+
+function renderPreview(deal) {
+  const owner = ownerName(deal);
+  const mailAddr = deal.Mailing_Street
+    ? [deal.Mailing_Street, [deal.Mailing_City, deal.Mailing_State, deal.Mailing_Zip_Code].filter(Boolean).join(', ')].filter(Boolean).join(', ')
+    : 'Same as physical';
+
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div><div class="card-title" style="margin-bottom:0">Confirm data</div><div class="deal-title">${deal.Deal_Name}</div></div>
+        <button class="btn btn-ghost" id="bb">← Back</button>
+      </div>
+      ${!deal.Owner_1_Full_Name ? `<div class="warn-box">⚠ Owner 1 Full Name is blank — using Contact Name as fallback.</div>` : ''}
+      <div class="owner-box">
+        <div class="section-label">Applicant — Section A</div>
+        ${fRow('appName', owner)}
+        ${fRow('appTitle', deal.Applicant_Title1 || 'Owner')}
+        ${fRow('formDate', today())}
+      </div>
+      <div class="section">
+        <div class="section-label">Carrier Info</div>
+        ${fRow('legalName',    deal.Deal_Name)}
+        ${fRow('dbaName',      deal.DBA)}
+        ${fRow('dotNumber',    deal.USDOT)}
+        ${fRow('docketNumber', deal.MC_Number)}
+        ${fRow('requestEmail', deal.Email)}
+        ${fRow('bizPhone',     deal.Business_Phone_Number)}
+      </div>
+      <div class="section">
+        <div class="section-label">Addresses</div>
+        ${fRow('carrierAddress', [deal.Physical_Street, [deal.Physical_City, deal.Physical_State, deal.Physical_Zip].filter(Boolean).join(', ')].filter(Boolean).join(', '))}
+        ${fRow('mailAddress', mailAddr)}
+      </div>
+      <div class="warn-box" style="margin-top:8px">
+        ⚠ Sections C (name changes), D (reinstatement), and E (payment) are left blank — fill manually in the PDF as needed.
+      </div>
+      <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Prefilled MCSA-5889</button>
+      <div id="ge" class="error-box" style="display:none"></div>
+    </div>`;
+
+  document.getElementById('bb').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('gb').onclick = async () => {
+    const btn = document.getElementById('gb');
+    btn.disabled = true; btn.textContent = 'Generating PDF…';
+    try {
+      const bytes = await fillPDF(PDF_URL, mapToMCSA5889(deal));
+      downloadPDF(bytes, 'MCSA-5889', deal.Deal_Name);
+      renderDone(deal);
+    } catch(e) {
+      const err = document.getElementById('ge');
+      err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
+      btn.disabled = false; btn.textContent = '⬇ Generate & Download Prefilled MCSA-5889';
+    }
+  };
+}
+
+function renderDone(deal) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="success-box">
+        <div class="check-circle">✓</div>
+        <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">MCSA-5889 Downloaded!</h2>
+        <p style="color:#64748b;font-size:14px;margin-bottom:24px">${deal.Deal_Name}</p>
+        <button class="btn btn-primary" id="ab" style="margin-right:8px">Generate Another</button>
+        <button class="btn btn-ghost" id="rb">Re-download PDF</button>
+      </div>
+    </div>`;
+  document.getElementById('ab').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('rb').onclick = async () => {
+    try { downloadPDF(await fillPDF(PDF_URL, mapToMCSA5889(deal)), 'MCSA-5889', deal.Deal_Name); }
+    catch(e) { alert('Error: ' + e.message); }
+  };
+}
+
+bootWithIdParam(renderPreview, renderPreview);
+</script>
+</body>
+</html>
