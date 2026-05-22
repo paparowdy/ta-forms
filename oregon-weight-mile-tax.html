@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oregon Weight-Mile Tax Enrollment â Truckers Authority</title>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+.header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.header p  { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+.logo { width: 36px; height: 36px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; color: white; text-decoration: none; }
+.container { max-width: 640px; margin: 32px auto; padding: 0 16px 48px; }
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+.search-row { display: flex; gap: 8px; }
+input[type="text"] { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1e293b; outline: none; }
+input[type="text"]:focus { border-color: #2563eb; }
+.btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn:hover { opacity: 0.88; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-success { background: #16a34a; color: white; width: 100%; padding: 12px; font-size: 15px; margin-top: 8px; }
+.btn-ghost   { background: transparent; border: 1px solid #e2e8f0; color: #64748b; font-size: 13px; padding: 6px 14px; }
+.result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+.result-item:hover { border-color: #2563eb; background: #eff6ff; }
+.result-name { font-weight: 500; font-size: 14px; }
+.result-meta { font-size: 11px; color: #94a3b8; margin-top: 3px; font-family: monospace; }
+.field-row { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
+.field-label { width: 160px; flex-shrink: 0; font-size: 11px; color: #94a3b8; font-family: monospace; padding-top: 1px; }
+.field-value { font-size: 13px; color: #1e293b; word-break: break-word; }
+.section { margin-bottom: 18px; }
+.section-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+.owner-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }
+.owner-box .section-label { color: #16a34a; }
+.warn-box   { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
+.error-box  { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; margin-top: 12px; }
+.success-box { text-align: center; padding: 32px 20px; }
+.check-circle { width: 56px; height: 56px; background: #dcfce7; border: 2px solid #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #16a34a; margin: 0 auto 16px; }
+.spinner { width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-box { text-align: center; padding: 32px; color: #64748b; font-size: 14px; }
+.hint { font-size: 11px; color: #94a3b8; margin-top: 10px; }
+.back-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.deal-title { font-size: 16px; font-weight: 600; margin-top: 2px; }
+@media (max-width: 480px) {
+  .header { padding: 12px 16px; }
+  .container { margin: 16px auto; }
+  .back-row { flex-wrap: wrap; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="logo" title="All Forms">TA</a>
+  <div>
+    <h1>Oregon Weight-Mile Tax Enrollment</h1>
+    <p>Truckers Authority Â· OR Form 9076</p>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script>
+// âââ Config ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+const WORKER  = 'https://zoho-proxy.oscarmh00.workers.dev';
+const PDF_URL = '9076fill - Oregon Weight Tax Enrollmen Application.pdf';
+
+// âââ Worker helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+class AuthRequiredError extends Error {
+  constructor() { super('Sign-in required'); this.name = 'AuthRequiredError'; }
+}
+
+async function callWorker(url) {
+  let res;
+  try { res = await fetch(url, { credentials: 'include' }); } catch { throw new AuthRequiredError(); }
+  if (res.status === 401 || res.status === 403 || res.redirected) throw new AuthRequiredError();
+  if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('json')) throw new AuthRequiredError();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function searchDeals(q) {
+  const data = await callWorker(`${WORKER}?action=search&word=${encodeURIComponent(q)}`);
+  return Array.isArray(data) ? data : [];
+}
+
+async function fetchDeal(id) {
+  return callWorker(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
+}
+
+// âââ PDF helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+function downloadPDF(bytes, prefix, dealName) {
+  const name = (dealName || 'client').replace(/[^a-zA-Z0-9]/g, '_');
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${prefix}_${name}.pdf`;
+  a.click();
+}
+
+async function fillPDF(pdfUrl, fieldValues) {
+  const resp = await fetch(pdfUrl, { cache: 'reload' });
+  if (!resp.ok) throw new Error(`Could not load form PDF (${resp.status})`);
+  const bytes  = await resp.arrayBuffer();
+  const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+  const form   = pdfDoc.getForm();
+  const helv   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+  for (const field of form.getFields()) {
+    const name = field.getName();
+    const val  = fieldValues[name];
+    if (val == null || val === '') continue;
+    try {
+      if (field instanceof PDFLib.PDFTextField) {
+        field.setText(String(val));
+      } else if (field instanceof PDFLib.PDFCheckBox) {
+        if (val === true || val === 'true' || val === '/Yes') field.check();
+      } else if (field instanceof PDFLib.PDFRadioGroup) {
+        try { field.select(String(val)); } catch {}
+      } else if (field instanceof PDFLib.PDFDropdown) {
+        try { field.select(String(val)); } catch {}
+      }
+    } catch {}
+  }
+  form.getFields().forEach(f => { try { f.updateAppearances(helv); } catch {} });
+  return pdfDoc.save();
+}
+
+function today() {
+  const d = new Date();
+  return String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0') + '/' + d.getFullYear();
+}
+
+function ownerName(deal) {
+  return deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '';
+}
+
+function fRow(label, value) {
+  return !value ? '' : `<div class="field-row"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
+}
+
+// âââ Field Map âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// PDF: 9076fill - Oregon Weight Tax Enrollmen Application.pdf
+// Fields use XFA path format: F[0].P1[0].fieldname[index]
+// NOTE: "siganturedate" is a typo in the original PDF field name â do not correct it.
+// Vehicle rows (base, stateprov, yr, make, vin, fuel, unit, vt, own, leased, etc.) left blank.
+
+function mapToOregonWeightMile(deal) {
+  const f = {};
+  const set = (id, val) => { if (val != null && String(val).trim()) f[id] = String(val).trim(); };
+  const owner = ownerName(deal);
+
+  // Business info
+  set('F[0].P1[0].business[0]',   deal.Deal_Name);
+  set('F[0].P1[0].telephone[0]',  deal.Business_Phone_Number);
+
+  // Business address
+  set('F[0].P1[0].busaddress[0]', deal.Physical_Street);
+  set('F[0].P1[0].city[0]',       deal.Physical_City);
+  set('F[0].P1[0].state[0]',      deal.Physical_State);
+  set('F[0].P1[0].zip[0]',        deal.Physical_Zip);
+
+  // Certification (NOTE: "siganturedate" is the correct field name per the PDF)
+  set('F[0].P1[0].signature[0]',    owner);
+  set('F[0].P1[0].printname[0]',    owner);
+  set('F[0].P1[0].title[0]',        deal.Applicant_Title1 || 'Owner');
+  set('F[0].P1[0].siganturedate[0]', today());
+
+  return f;
+}
+
+// âââ UI helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+const app = document.getElementById('app');
+
+function renderSignIn(retryFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="card-title">Sign-in required</div>
+      <p style="font-size:14px;color:#475569;margin-bottom:16px">
+        Sign in with your <b>@truckersauthority.com</b> account to use this tool.
+      </p>
+      <button class="btn btn-primary" id="signin">Sign in via Cloudflare</button>
+      <p class="hint" style="margin-top:14px">After signing in the tab will close and you'll return here automatically.</p>
+    </div>`;
+  document.getElementById('signin').onclick = () => {
+    const w = window.open(WORKER, 'tasignin', 'width=520,height=640');
+    const t = setInterval(() => {
+      if (!w || w.closed) { clearInterval(t); if (retryFn) retryFn(); else location.reload(); }
+    }, 500);
+  };
+}
+
+function renderLoading(msg) {
+  app.innerHTML = `<div class="card loading-box"><div class="spinner"></div>${msg}</div>`;
+}
+
+function renderSearch(err, searchFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="card-title">Search closed deal</div>
+      <div class="search-row">
+        <input type="text" id="si" placeholder="Company name, DOT #, owner nameâ¦" autofocus>
+        <button class="btn btn-primary" id="sb">Search â</button>
+      </div>
+      ${err ? `<div class="error-box">${err}</div>` : ''}
+      <p class="hint" style="margin-top:10px">Search any Deal from Zoho CRM by company name or DOT number.</p>
+    </div>`;
+  const go = async () => {
+    const q = document.getElementById('si').value.trim();
+    if (!q) return;
+    renderLoading(`Searching for "${q}"â¦`);
+    try {
+      const results = await searchDeals(q);
+      if (!results.length) renderSearch(`No deals found for "${q}".`, searchFn);
+      else renderPick(results, searchFn);
+    } catch(e) {
+      if (e instanceof AuthRequiredError) renderSignIn(go);
+      else renderSearch('Error: ' + e.message, searchFn);
+    }
+  };
+  document.getElementById('sb').onclick = go;
+  document.getElementById('si').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
+}
+
+function renderPick(results, searchFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div class="card-title" style="margin-bottom:0">Select a deal</div>
+        <button class="btn btn-ghost" id="bb">â Back</button>
+      </div>
+      ${results.map(r => `<div class="result-item" data-id="${r.id}">
+        <div>
+          <div class="result-name">${r.Deal_Name||r.id}</div>
+          <div class="result-meta">${[r.Stage,r.USDOT?'DOT# '+r.USDOT:null,r.Owner_1_Full_Name,[r.Physical_City,r.Physical_State].filter(Boolean).join(', ')].filter(Boolean).join('  Â·  ')}</div>
+        </div>
+        <span style="color:#94a3b8;font-size:20px">âº</span>
+      </div>`).join('')}
+    </div>`;
+  document.getElementById('bb').onclick = () => renderSearch(null, searchFn);
+  document.querySelectorAll('.result-item').forEach(el => {
+    el.onclick = async () => {
+      renderLoading('Loading ' + el.querySelector('.result-name').textContent + 'â¦');
+      try { searchFn(await fetchDeal(el.dataset.id)); }
+      catch(e) { renderSearch('Error: ' + e.message, searchFn); }
+    };
+  });
+}
+
+// âââ Preview & Download ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+function renderPreview(deal) {
+  const owner = ownerName(deal);
+  const isOR  = (deal.Physical_State || '').toUpperCase() === 'OR';
+
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div>
+          <div class="card-title" style="margin-bottom:0">Confirm data</div>
+          <div class="deal-title">${deal.Deal_Name}</div>
+        </div>
+        <button class="btn btn-ghost" id="bb">â Back</button>
+      </div>
+      ${!isOR ? `<div class="warn-box">â  Physical State is <b>${deal.Physical_State || '(blank)'}</b>, not OR. Confirm this is correct.</div>` : ''}
+      ${!deal.Owner_1_Full_Name ? `<div class="warn-box">â  Owner 1 Full Name is blank â using Contact Name as fallback.</div>` : ''}
+      <div class="owner-box">
+        <div class="section-label">Certification</div>
+        ${fRow('Printed Name', owner)}
+        ${fRow('Signature', owner)}
+        ${fRow('Title', deal.Applicant_Title1 || 'Owner')}
+        ${fRow('Date', today())}
+      </div>
+      <div class="section">
+        <div class="section-label">Business Info</div>
+        ${fRow('Business Name', deal.Deal_Name)}
+        ${fRow('Phone', deal.Business_Phone_Number)}
+      </div>
+      <div class="section">
+        <div class="section-label">Business Address</div>
+        ${fRow('Street', deal.Physical_Street)}
+        ${fRow('City', deal.Physical_City)}
+        ${fRow('State', deal.Physical_State)}
+        ${fRow('Zip', deal.Physical_Zip)}
+      </div>
+      <div class="warn-box">â  Vehicle rows (base state, year, make, VIN, fuel type, unit #, weight, ownership, odometer) are left blank â fill per specific vehicles enrolled.</div>
+      <p class="hint">The PDF stays editable after download. Add vehicle details and submit to OR DMV.</p>
+      <button class="btn btn-success" id="gb">â¬ Generate &amp; Download Oregon Weight-Mile Tax Enrollment</button>
+      <div id="ge" class="error-box" style="display:none"></div>
+    </div>`;
+
+  document.getElementById('bb').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('gb').onclick = async () => {
+    const btn = document.getElementById('gb');
+    btn.disabled = true; btn.textContent = 'Generating PDFâ¦';
+    try {
+      const bytes = await fillPDF(PDF_URL, mapToOregonWeightMile(deal));
+      downloadPDF(bytes, 'OR-Weight-Mile-Tax', deal.Deal_Name);
+      renderDone(deal);
+    } catch(e) {
+      const err = document.getElementById('ge');
+      err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
+      btn.disabled = false; btn.textContent = 'â¬ Generate & Download Oregon Weight-Mile Tax Enrollment';
+    }
+  };
+}
+
+function renderDone(deal) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="success-box">
+        <div class="check-circle">â</div>
+        <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">OR Weight-Mile Tax Enrollment Downloaded!</h2>
+        <p style="color:#64748b;font-size:14px;margin-bottom:20px">${deal.Deal_Name}</p>
+        <button class="btn btn-primary" id="ab" style="margin-right:8px">Generate Another</button>
+        <button class="btn btn-ghost" id="rb">Re-download PDF</button>
+      </div>
+    </div>`;
+  document.getElementById('ab').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('rb').onclick = async () => {
+    try { downloadPDF(await fillPDF(PDF_URL, mapToOregonWeightMile(deal)), 'OR-Weight-Mile-Tax', deal.Deal_Name); }
+    catch(e) { alert('Error: ' + e.message); }
+  };
+}
+
+// âââ Boot ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+(async function boot() {
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (id) {
+    renderLoading('Loading deal from Zoho CRMâ¦');
+    try { renderPreview(await fetchDeal(id)); }
+    catch(e) {
+      if (e instanceof AuthRequiredError) {
+        renderSignIn(async () => {
+          renderLoading('Loading deal from Zoho CRMâ¦');
+          try { renderPreview(await fetchDeal(id)); }
+          catch(err) { renderSearch('Could not load deal: ' + err.message, renderPreview); }
+        });
+      } else {
+        renderSearch('Could not load deal: ' + e.message, renderPreview);
+      }
+    }
+  } else {
+    renderSearch(null, renderPreview);
+  }
+})();
+</script>
+</body>
+</html>
