@@ -3,12 +3,50 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TA Forms — Truckers Authority</title>
-<link rel="stylesheet" href="shared/styles.css">
+<title>TA Forms â Truckers Authority</title>
 <style>
-  .hero { text-align: center; padding: 40px 16px 0; }
-  .hero h2 { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
-  .hero p  { font-size: 14px; color: #64748b; max-width: 480px; margin: 0 auto; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+.header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.header p  { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+.logo { width: 36px; height: 36px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; color: white; text-decoration: none; }
+.container { max-width: 720px; margin: 32px auto; padding: 0 16px 48px; }
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+.deal-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px; }
+.deal-banner-label { font-size: 11px; font-weight: 600; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+.deal-banner-name { font-size: 20px; font-weight: 700; color: #1e293b; }
+.deal-banner-meta { font-size: 12px; color: #64748b; margin-top: 4px; font-family: monospace; }
+.state-badge { display: inline-block; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-left: 8px; vertical-align: middle; }
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 4px; }
+.form-tile { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; cursor: pointer; text-decoration: none; color: inherit; display: block; transition: border-color 0.15s, box-shadow 0.15s; }
+.form-tile:hover { border-color: #2563eb; box-shadow: 0 4px 16px rgba(37,99,235,0.1); }
+.form-tile-icon { width: 40px; height: 40px; background: #eff6ff; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 14px; }
+.form-tile-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.form-tile-desc { font-size: 12px; color: #64748b; line-height: 1.5; }
+.form-tile-badge { font-size: 10px; font-weight: 600; color: #059669; background: #d1fae5; padding: 2px 7px; border-radius: 20px; display: inline-block; margin-bottom: 8px; }
+.section-divider { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9; }
+
+.hero { text-align: center; padding: 40px 16px 0; }
+.hero h2 { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+.hero p  { font-size: 14px; color: #64748b; max-width: 480px; margin: 0 auto; }
+
+.spinner { width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-box { text-align: center; padding: 32px; color: #64748b; font-size: 14px; }
+.error-box  { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; margin-top: 12px; }
+.btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn:hover { opacity: 0.88; }
+.btn-primary { background: #2563eb; color: white; }
+.hint { font-size: 11px; color: #94a3b8; margin-top: 10px; }
+
+@media (max-width: 480px) {
+  .header { padding: 12px 16px; }
+  .container { margin: 16px auto; }
+  .form-grid { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -17,49 +55,194 @@
   <div class="logo">TA</div>
   <div>
     <h1>Forms Generator</h1>
-    <p>Truckers Authority · Internal Tool</p>
+    <p>Truckers Authority Â· Internal Tool</p>
   </div>
 </div>
 
-<div class="container">
-  <div class="hero">
-    <h2>Prefill Government Forms from Zoho CRM</h2>
-    <p>Select a form below, find the deal in Zoho, and download a prefilled PDF — no manual data entry.</p>
-  </div>
+<div class="container" id="app"></div>
 
-  <div class="form-grid">
+<script>
+const WORKER = 'https://zoho-proxy.oscarmh00.workers.dev';
 
-    <a href="mcs150.html" class="form-tile">
-      <div class="form-tile-icon">📋</div>
-      <div class="form-tile-name">MCS-150</div>
-      <div class="form-tile-desc">FMCSA Motor Carrier Identification Report. Required for new USDOT registration and biennial updates.</div>
-    </a>
+// âââ All form definitions ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+const ALL_FORMS = [
+  {
+    id: 'mcs150',
+    icon: 'ð',
+    name: 'MCS-150',
+    desc: 'FMCSA Motor Carrier Identification Report. Required for new USDOT registration and biennial updates.',
+    href: 'mcs150.html',
+    states: null,   // null = show for all states
+    badge: 'Federal',
+  },
+  {
+    id: 'mcsa5889',
+    icon: 'ð',
+    name: 'MCSA-5889',
+    desc: 'Motor Carrier Records Change Request. Use to update carrier info, address changes, or reinstatement after revocation.',
+    href: 'mcsa5889.html',
+    states: null,
+    badge: 'Federal',
+  },
+  {
+    id: 'oce46',
+    icon: 'ð',
+    name: 'OCE-46',
+    desc: 'FMCSA Request for Operating Authority. Notarized request form for new or reinstated operating authority.',
+    href: 'oce46.html',
+    states: null,
+    badge: 'Federal',
+  },
+  {
+    id: 'mc706m',
+    icon: 'ð´',
+    name: 'CA MCP â MC 706 M',
+    desc: 'California Motor Carrier Permit application. Required for carriers operating commercially in California.',
+    href: 'mc706m.html',
+    states: ['CA'],
+    badge: 'California',
+  },
+  {
+    id: 'or-commercial',
+    icon: 'ð²',
+    name: 'OR Commercial Registration',
+    desc: 'Oregon Commercial Registration Application (Form 9691). Required for commercial vehicle registration with OR DMV.',
+    href: 'oregon-commercial-registration.html',
+    states: ['OR'],
+    badge: 'Oregon',
+  },
+  {
+    id: 'or-weightmile',
+    icon: 'âï¸',
+    name: 'OR Weight-Mile Tax Enrollment',
+    desc: 'Oregon Weight-Mile Tax Enrollment Application (Form 9076). Required for carriers subject to OR weight-mile tax.',
+    href: 'oregon-weight-mile-tax.html',
+    states: ['OR'],
+    badge: 'Oregon',
+  },
+  {
+    id: 'al-14a',
+    icon: 'ð',
+    name: 'Alabama Form 14A',
+    desc: 'APSC Motor Carrier Certificate Application. Required for intrastate property carrier authority in Alabama.',
+    href: 'alabama-form-14a.html',
+    states: ['AL'],
+    badge: 'Alabama',
+  },
+];
 
-    <a href="mcsa5889.html" class="form-tile">
-      <div class="form-tile-icon">🔄</div>
-      <div class="form-tile-name">MCSA-5889</div>
-      <div class="form-tile-desc">Motor Carrier Records Change Request. Use to update carrier info, address changes, or reinstatement after revocation.</div>
-    </a>
+function tileHTML(form, dealId) {
+  const href = dealId ? `${form.href}?id=${encodeURIComponent(dealId)}` : form.href;
+  return `
+    <a href="${href}" class="form-tile">
+      <div class="form-tile-icon">${form.icon}</div>
+      ${form.badge ? `<div class="form-tile-badge">${form.badge}</div>` : ''}
+      <div class="form-tile-name">${form.name}</div>
+      <div class="form-tile-desc">${form.desc}</div>
+    </a>`;
+}
 
-    <a href="mc706m.html" class="form-tile">
-      <div class="form-tile-icon">🌴</div>
-      <div class="form-tile-name">CA MCP — MC 706 M</div>
-      <div class="form-tile-desc">California Motor Carrier Permit application. Required for carriers operating commercially in California.</div>
-    </a>
+// âââ Static view (no ?id=): show all forms ââââââââââââââââââââââââââââââââââââ
+function renderStatic() {
+  const federal = ALL_FORMS.filter(f => !f.states);
+  const state   = ALL_FORMS.filter(f => f.states);
 
-    <a href="oce46.html" class="form-tile">
-      <div class="form-tile-icon">📄</div>
-      <div class="form-tile-name">OCE-46</div>
-      <div class="form-tile-desc">FMCSA Request for Operating Authority. Notarized request form for new or einstated operating authority.</div>
-    </a>
+  document.getElementById('app').innerHTML = `
+    <div class="hero">
+      <h2>Prefill Government Forms from Zoho CRM</h2>
+      <p>Select a form below, find the deal in Zoho, and download a prefilled PDF â no manual data entry.</p>
+    </div>
+    <div class="section-divider" style="margin-top:28px">Federal Forms</div>
+    <div class="form-grid">
+      ${federal.map(f => tileHTML(f, null)).join('')}
+    </div>
+    <div class="section-divider">State-Specific Forms</div>
+    <div class="form-grid">
+      ${state.map(f => tileHTML(f, null)).join('')}
+    </div>
+    <p class="hint" style="text-align:center;margin-top:24px">
+      Each form pulls carrier data directly from the Deal record in Zoho CRM.<br>
+      You can also open forms directly from the Deal record using the "Generate Form" button.
+    </p>`;
+}
 
-  </div>
+// âââ Deal view (?id= present): fetch deal, show filtered tiles ââââââââââââââââ
+async function renderDealView(id) {
+  document.getElementById('app').innerHTML = `<div class="card loading-box"><div class="spinner"></div>Loading deal from Zoho CRMâ¦</div>`;
 
-  <p class="hint" style="text-align:center;margin-top:24px">
-    Each form pulls carrier data directly from the Deal record in Zoho CRM.<br>
-    You can also open forms directly from the Deal record using the "Generate [Form]" buttons.
-  </p>
-</div>
+  let deal;
+  try {
+    const res = await fetch(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`, { credentials: 'include' });
+    if (res.status === 401 || res.status === 403 || res.redirected || !res.headers.get('content-type')?.includes('json')) {
+      renderSignIn(id);
+      return;
+    }
+    if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+    deal = await res.json();
+    if (deal.error) throw new Error(deal.error);
+  } catch(e) {
+    if (e.message === 'Failed to fetch') { renderSignIn(id); return; }
+    document.getElementById('app').innerHTML = `<div class="card"><div class="error-box">Could not load deal: ${e.message}</div><p class="hint" style="margin-top:8px"><a href="index.html">â Back to all forms</a></p></div>`;
+    return;
+  }
 
+  const state = (deal.Physical_State || '').toUpperCase().trim();
+  const dot   = deal.USDOT ? `DOT# ${deal.USDOT}` : '';
+  const loc   = [deal.Physical_City, deal.Physical_State].filter(Boolean).join(', ');
+
+  // Filter forms for this deal's state
+  const visibleForms = ALL_FORMS.filter(f => !f.states || f.states.includes(state));
+  const federal = visibleForms.filter(f => !f.states);
+  const stateSpecific = visibleForms.filter(f => f.states);
+
+  let html = `
+    <div class="deal-banner">
+      <div class="deal-banner-label">Generate form for</div>
+      <div class="deal-banner-name">${deal.Deal_Name || '(unnamed deal)'}<span class="state-badge">${state || '?'}</span></div>
+      <div class="deal-banner-meta">${[dot, deal.Owner_1_Full_Name, loc].filter(Boolean).join('  Â·  ')}</div>
+    </div>
+    <div class="section-divider">Federal Forms</div>
+    <div class="form-grid">
+      ${federal.map(f => tileHTML(f, id)).join('')}
+    </div>`;
+
+  if (stateSpecific.length) {
+    html += `
+    <div class="section-divider">State Forms â ${state}</div>
+    <div class="form-grid">
+      ${stateSpecific.map(f => tileHTML(f, id)).join('')}
+    </div>`;
+  }
+
+  html += `<p class="hint" style="text-align:center;margin-top:24px"><a href="index.html">â View all forms</a></p>`;
+  document.getElementById('app').innerHTML = html;
+}
+
+function renderSignIn(dealId) {
+  document.getElementById('app').innerHTML = `
+    <div class="card" style="max-width:420px;margin:0 auto">
+      <div class="card-title">Sign-in required</div>
+      <p style="font-size:14px;color:#475569;margin-bottom:16px">
+        Sign in with your <b>@truckersauthority.com</b> account to use this tool.
+      </p>
+      <button class="btn btn-primary" id="signin">Sign in via Cloudflare</button>
+      <p class="hint" style="margin-top:14px">After signing in the tab will close and you'll return here automatically.</p>
+    </div>`;
+  document.getElementById('signin').onclick = () => {
+    const w = window.open(WORKER, 'tasignin', 'width=520,height=640');
+    const t = setInterval(() => {
+      if (!w || w.closed) { clearInterval(t); renderDealView(dealId); }
+    }, 500);
+  };
+}
+
+// âââ Boot ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+const dealId = new URLSearchParams(window.location.search).get('id');
+if (dealId) {
+  renderDealView(dealId);
+} else {
+  renderStatic();
+}
+</script>
 </body>
 </html>
