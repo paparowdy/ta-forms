@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alabama Form 14A â Truckers Authority</title>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+.header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.header p  { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+.logo { width: 36px; height: 36px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; color: white; text-decoration: none; }
+.container { max-width: 640px; margin: 32px auto; padding: 0 16px 48px; }
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+.search-row { display: flex; gap: 8px; }
+input[type="text"] { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1e293b; outline: none; }
+input[type="text"]:focus { border-color: #2563eb; }
+.btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn:hover { opacity: 0.88; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-success { background: #16a34a; color: white; width: 100%; padding: 12px; font-size: 15px; margin-top: 8px; }
+.btn-ghost   { background: transparent; border: 1px solid #e2e8f0; color: #64748b; font-size: 13px; padding: 6px 14px; }
+.result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+.result-item:hover { border-color: #2563eb; background: #eff6ff; }
+.result-name { font-weight: 500; font-size: 14px; }
+.result-meta { font-size: 11px; color: #94a3b8; margin-top: 3px; font-family: monospace; }
+.field-row { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
+.field-label { width: 160px; flex-shrink: 0; font-size: 11px; color: #94a3b8; font-family: monospace; padding-top: 1px; }
+.field-value { font-size: 13px; color: #1e293b; word-break: break-word; }
+.section { margin-bottom: 18px; }
+.section-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+.owner-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }
+.owner-box .section-label { color: #16a34a; }
+.warn-box   { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
+.error-box  { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; margin-top: 12px; }
+.success-box { text-align: center; padding: 32px 20px; }
+.check-circle { width: 56px; height: 56px; background: #dcfce7; border: 2px solid #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #16a34a; margin: 0 auto 16px; }
+.spinner { width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-box { text-align: center; padding: 32px; color: #64748b; font-size: 14px; }
+.hint { font-size: 11px; color: #94a3b8; margin-top: 10px; }
+.back-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.deal-title { font-size: 16px; font-weight: 600; margin-top: 2px; }
+@media (max-width: 480px) {
+  .header { padding: 12px 16px; }
+  .container { margin: 16px auto; }
+  .back-row { flex-wrap: wrap; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="logo" title="All Forms">TA</a>
+  <div>
+    <h1>Alabama Motor Carrier â Form 14A</h1>
+    <p>Truckers Authority Â· APSC Form No. 14A (Property)</p>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script>
+// âââ Config ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+const WORKER  = 'https://zoho-proxy.oscarmh00.workers.dev';
+const PDF_URL = 'FORM-14A-PROPERTY ALABAMA MOTOR CARRIER APPLICATION.pdf';
+
+// âââ Coordinate Map ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Form 14A has NO AcroForm fields. Text is overlaid via page.drawText() at
+// specific (x, y) coordinates derived from pdfminer text extraction.
+// All pages are 612Ã792 pts (US Letter). Y=0 is bottom of page.
+// Font size 10pt, Helvetica. Field key "pageN" = page index (0-based).
+//
+// To update coordinates, edit this map and re-deploy. See alabama-form-14a-coords.json
+// in the repo for the full extracted text map used to derive these positions.
+const COORDS = {
+  // ââ Page 1: Section I â Applicant Info ââââââââââââââââââââââââââââââââââââââ
+  // "Applicant" label at y=561.9 â draw deal name to right
+  applicant:       { page: 0, x: 135, y: 562, field: 'Deal_Name' },
+  // "Business Address" label at y=502 â physical street to right
+  biz_street:      { page: 0, x: 172, y: 502, field: 'Physical_Street' },
+  // "(City)" hint at y=463 â draw city just above hint
+  biz_city:        { page: 0, x:  90, y: 475, field: 'Physical_City' },
+  biz_state:       { page: 0, x: 272, y: 475, field: 'Physical_State' },
+  biz_zip:         { page: 0, x: 452, y: 475, field: 'Physical_Zip' },
+  // "Mailing Address" label at y=440 â mailing street to right
+  mail_street:     { page: 0, x: 172, y: 440, field: 'Mailing_Street_or_Physical_Street' },
+  // Mailing city/state/zip hints at y=400.8
+  mail_city:       { page: 0, x:  90, y: 413, field: 'Mailing_City_or_Physical_City' },
+  mail_state:      { page: 0, x: 272, y: 413, field: 'Mailing_State_or_Physical_State' },
+  mail_zip:        { page: 0, x: 452, y: 413, field: 'Mailing_Zip_or_Physical_Zip' },
+  // Phone: "(" at x=54,y=371  ")" at x=90,y=371  â draw phone digits after open paren
+  phone:           { page: 0, x:  63, y: 371, field: 'Business_Phone_Number' },
+  // Email hint at (450.1, 361.7) â draw email on phone line, far right
+  email:           { page: 0, x: 452, y: 373, field: 'Email' },
+
+  // ââ Page 2: Section II â USDOT / MC Numbers âââââââââââââââââââââââââââââââââ
+  // "USDOT#" at (54, 501.7), "MC#" at (234.1, 501.7)
+  usdot:           { page: 1, x:  90, y: 502, field: 'USDOT' },
+  mc_number:       { page: 1, x: 270, y: 502, field: 'MC_Number' },
+
+  // ââ Page 3: Section VI â Contact Person âââââââââââââââââââââââââââââââââââââ
+  // "(Name)" hint at y=673.4 â draw owner name above hint
+  contact_name:    { page: 2, x:  54, y: 686, field: 'Owner_1_Full_Name' },
+  // "(Address)" hint at y=628.6 â draw address above hint
+  contact_street:  { page: 2, x:  54, y: 641, field: 'Physical_Street' },
+  // City/State/Zip hints at y=583.8
+  contact_city:    { page: 2, x:  54, y: 596, field: 'Physical_City' },
+  contact_state:   { page: 2, x: 163, y: 596, field: 'Physical_State' },
+  contact_zip:     { page: 2, x: 236, y: 596, field: 'Physical_Zip' },
+  // "(Telephone Number)" hint at y=538.9
+  contact_phone:   { page: 2, x: 126, y: 551, field: 'Business_Phone_Number' },
+  // OATH: "County of" at y=386.6, "State of" at y=361.4
+  oath_county:     { page: 2, x: 125, y: 387, field: 'Physical_City' },
+  oath_state:      { page: 2, x: 125, y: 361, field: 'Physical_State' },
+  // "Name of Affiant" at y=323.3
+  affiant:         { page: 2, x: 184, y: 323, field: 'Owner_1_Full_Name' },
+
+  // ââ Page 4: Appendix B â Motor Vehicle List (carrier identity) âââââââââââââââ
+  // "LEGAL NAME:" at y=596.9
+  appB_name:       { page: 3, x: 130, y: 597, field: 'Deal_Name' },
+  // "MAILING ADDRESS:" at y=569.3
+  appB_street:     { page: 3, x: 184, y: 569, field: 'Mailing_Street_or_Physical_Street' },
+  // "CITY:" at y=541.7, "STATE:" at (306.1,541.7), "ZIP CODE:" at (414.1,541.7)
+  appB_city:       { page: 3, x:  90, y: 542, field: 'Mailing_City_or_Physical_City' },
+  appB_state:      { page: 3, x: 362, y: 542, field: 'Mailing_State_or_Physical_State' },
+  appB_zip:        { page: 3, x: 468, y: 542, field: 'Mailing_Zip_or_Physical_Zip' },
+
+  // ââ Page 7: Form B-2 â Vehicle Registration Numbers âââââââââââââââââââââââââ
+  // "LEGAL NAME:" at y=580
+  B2_name:         { page: 6, x: 130, y: 580, field: 'Deal_Name' },
+  // "MAILING ADDRESS:" at y=526.6
+  B2_street:       { page: 6, x: 184, y: 526, field: 'Mailing_Street_or_Physical_Street' },
+  // "CITY:" at y=499, "STATE:" at (270.1,499), "ZIP CODE:" at (378.1,499)
+  B2_city:         { page: 6, x:  90, y: 499, field: 'Mailing_City_or_Physical_City' },
+  B2_state:        { page: 6, x: 318, y: 499, field: 'Mailing_State_or_Physical_State' },
+  B2_zip:          { page: 6, x: 432, y: 499, field: 'Mailing_Zip_or_Physical_Zip' },
+};
+
+// âââ Business structure checkboxes (Page 1) ââââââââââââââââââââââââââââââââââââ
+// Checkbox chars (ï¯ bullets) are at these positions; draw "X" to mark selection
+const BIZ_CHECKBOXES = {
+  corp:    { page: 0, x: 57, y: 240 },  // CORPORATION
+  lp:      { page: 0, x: 57, y: 213 },  // LIMITED PARTNERSHIP
+  llc:     { page: 0, x: 309, y: 240 }, // LLC
+  llp:     { page: 0, x: 309, y: 213 }, // LLP
+  sole:    { page: 0, x: 57, y: 186 },  // SOLE PROPRIETORSHIP
+  partner: { page: 0, x: 57, y: 160 },  // PARTNERSHIP
+  other:   { page: 0, x: 57, y: 113 },  // OTHER
+};
+
+// âââ Worker helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+class AuthRequiredError extends Error {
+  constructor() { super('Sign-in required'); this.name = 'AuthRequiredError'; }
+}
+
+async function callWorker(url) {
+  let res;
+  try { res = await fetch(url, { credentials: 'include' }); } catch { throw new AuthRequiredError(); }
+  if (res.status === 401 || res.status === 403 || res.redirected) throw new AuthRequiredError();
+  if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('json')) throw new AuthRequiredError();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function searchDeals(q) {
+  const data = await callWorker(`${WORKER}?action=search&word=${encodeURIComponent(q)}`);
+  return Array.isArray(data) ? data : [];
+}
+
+async function fetchDeal(id) {
+  return callWorker(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
+}
+
+// âââ PDF helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+function downloadPDF(bytes, prefix, dealName) {
+  const name = (dealName || 'client').replace(/[^a-zA-Z0-9]/g, '_');
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${prefix}_${name}.pdf`;
+  a.click();
+}
+
+// Resolve virtual field names to actual deal values
+function resolveField(fieldKey, deal) {
+  const owner = deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '';
+  const mailStreet = deal.Mailing_Street || deal.Physical_Street || '';
+  const mailCity   = deal.Mailing_City   || deal.Physical_City   || '';
+  const mailState  = deal.Mailing_State  || deal.Physical_State  || '';
+  const mailZip    = deal.Mailing_Zip_Code || deal.Physical_Zip  || '';
+
+  const map = {
+    Deal_Name:                    deal.Deal_Name || '',
+    Physical_Street:              deal.Physical_Street || '',
+    Physical_City:                deal.Physical_City || '',
+    Physical_State:               deal.Physical_State || '',
+    Physical_Zip:                 deal.Physical_Zip || '',
+    Mailing_Street_or_Physical_Street: mailStreet,
+    Mailing_City_or_Physical_City:     mailCity,
+    Mailing_State_or_Physical_State:   mailState,
+    Mailing_Zip_or_Physical_Zip:       mailZip,
+    Business_Phone_Number:        deal.Business_Phone_Number || '',
+    Email:                        deal.Email || '',
+    USDOT:                        deal.USDOT || '',
+    MC_Number:                    deal.MC_Number || '',
+    Owner_1_Full_Name:            owner,
+  };
+  return map[fieldKey] || '';
+}
+
+// Determine which business structure checkbox to mark
+function getBizCheckbox(deal) {
+  const biz = (deal.Business_Structure || '').toLowerCase();
+  if (biz.includes('llp') || biz.includes('limited liability partnership')) return 'llp';
+  if (biz.includes('llc') || biz.includes('limited liability company'))    return 'llc';
+  if (biz.includes('corp'))                                                  return 'corp';
+  if (biz.includes('limited partnership'))                                   return 'lp';
+  if (biz.includes('sole'))                                                  return 'sole';
+  if (biz.includes('partner'))                                               return 'partner';
+  return 'sole'; // default
+}
+
+async function fillAlabama14A(deal) {
+  const resp = await fetch(PDF_URL, { cache: 'reload' });
+  if (!resp.ok) throw new Error(`Could not load form PDF (${resp.status})`);
+  const bytes  = await resp.arrayBuffer();
+  const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+  const helv   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+  const pages  = pdfDoc.getPages();
+  const fontSize = 10;
+  const color = PDFLib.rgb(0, 0, 0);
+
+  // Draw all coordinate-mapped fields
+  for (const [key, coord] of Object.entries(COORDS)) {
+    const value = resolveField(coord.field, deal);
+    if (!value) continue;
+    const page = pages[coord.page];
+    if (!page) continue;
+    try {
+      page.drawText(value, {
+        x: coord.x,
+        y: coord.y,
+        size: fontSize,
+        font: helv,
+        color,
+      });
+    } catch {}
+  }
+
+  // Draw business structure checkbox (X marker)
+  const cbKey = getBizCheckbox(deal);
+  const cb = BIZ_CHECKBOXES[cbKey];
+  if (cb) {
+    const page = pages[cb.page];
+    if (page) {
+      try {
+        page.drawText('X', {
+          x: cb.x, y: cb.y,
+          size: 11,
+          font: helv,
+          color: PDFLib.rgb(0, 0, 0),
+        });
+      } catch {}
+    }
+  }
+
+  return pdfDoc.save();
+}
+
+function today() {
+  const d = new Date();
+  return String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0') + '/' + d.getFullYear();
+}
+
+function ownerName(deal) {
+  return deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '';
+}
+
+function fRow(label, value) {
+  return !value ? '' : `<div class="field-row"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
+}
+
+function bizLabel(deal) {
+  const biz = (deal.Business_Structure || '').toLowerCase();
+  if (biz.includes('llp'))  return 'LLP';
+  if (biz.includes('llc'))  return 'LLC';
+  if (biz.includes('corp')) return 'Corporation';
+  if (biz.includes('limited partnership')) return 'Limited Partnership';
+  if (biz.includes('sole')) return 'Sole Proprietorship';
+  if (biz.includes('partner')) return 'Partnership';
+  return deal.Business_Structure || 'Sole Proprietorship (default)';
+}
+
+// âââ UI helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+const app = document.getElementById('app');
+
+function renderSignIn(retryFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="card-title">Sign-in required</div>
+      <p style="font-size:14px;color:#475569;margin-bottom:16px">
+        Sign in with your <b>@truckersauthority.com</b> account to use this tool.
+      </p>
+      <button class="btn btn-primary" id="signin">Sign in via Cloudflare</button>
+      <p class="hint" style="margin-top:14px">After signing in the tab will close and you'll return here automatically.</p>
+    </div>`;
+  document.getElementById('signin').onclick = () => {
+    const w = window.open(WORKER, 'tasignin', 'width=520,height=640');
+    const t = setInterval(() => {
+      if (!w || w.closed) { clearInterval(t); if (retryFn) retryFn(); else location.reload(); }
+    }, 500);
+  };
+}
+
+function renderLoading(msg) {
+  app.innerHTML = `<div class="card loading-box"><div class="spinner"></div>${msg}</div>`;
+}
+
+function renderSearch(err, searchFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="card-title">Search closed deal</div>
+      <div class="search-row">
+        <input type="text" id="si" placeholder="Company name, DOT #, owner nameâ¦" autofocus>
+        <button class="btn btn-primary" id="sb">Search â</button>
+      </div>
+      ${err ? `<div class="error-box">${err}</div>` : ''}
+      <p class="hint" style="margin-top:10px">Search any Deal from Zoho CRM by company name or DOT number.</p>
+    </div>`;
+  const go = async () => {
+    const q = document.getElementById('si').value.trim();
+    if (!q) return;
+    renderLoading(`Searching for "${q}"â¦');
+    try {
+      const results = await searchDeals(q);
+      if (!results.length) renderSearch(`No deals found for "${q}".`, searchFn);
+      else renderPick(results, searchFn);
+    } catch(e) {
+      if (e instanceof AuthRequiredError) renderSignIn(go);
+      else renderSearch('Error: ' + e.message, searchFn);
+    }
+  };
+  document.getElementById('sb').onclick = go;
+  document.getElementById('si').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
+}
+
+function renderPick(results, searchFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div class="card-title" style="margin-bottom:0">Select a deal</div>
+        <button class="btn btn-ghost" id="bb">â Back</button>
+      </div>
+      ${results.map(r => `<div class="result-item" data-id="${r.id}">
+        <div>
+          <div class="result-name">${r.Deal_Name||r.id}</div>
+          <div class="result-meta">${[r.Stage,r.USDOT?'DOT# '+r.USDOT:null,r.Owner_1_Full_Name,[r.Physical_City,r.Physical_State].filter(Boolean).join(', ')].filter(Boolean).join('  Â·  ')}</div>
+        </div>
+        <span style="color:#94a3b8;font-size:20px">âº</span>
+      </div>`).join('')}
+    </div>`;
+  document.getElementById('bb').onclick = () => renderSearch(null, searchFn);
+  document.querySelectorAll('.result-item').forEach(el => {
+    el.onclick = async () => {
+      renderLoading('Loading ' + el.querySelector('.result-name').textContent + 'â¦');
+      try { searchFn(await fetchDeal(el.dataset.id)); }
+      catch(e) { renderSearch('Error: ' + e.message, searchFn); }
+    };
+  });
+}
+
+// âââ Preview & Download ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+function renderPreview(deal) {
+  const owner = ownerName(deal);
+  const isAL  = (deal.Physical_State || '').toUpperCase() === 'AL';
+  const mailStreet = deal.Mailing_Street || deal.Physical_Street;
+
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div>
+          <div class="card-title" style="margin-bottom:0">Confirm data</div>
+          <div class="deal-title">${deal.Deal_Name}</div>
+        </div>
+        <button class="btn btn-ghost" id="bb">â Back</button>
+      </div>
+      ${!isAL ? `<div class="warn-box">â  Physical State is <b>${deal.Physical_State || '(blank)'}</b>, not AL. Confirm this is correct.</div>` : ''}
+      ${!deal.Owner_1_Full_Name ? `<div class="warn-box">â  Owner 1 Full Name is blank â using Contact Name as fallback.</div>` : ''}
+      <div class="owner-box">
+        <div class="section-label">Oath (Page 3)</div>
+        ${fRow('Name of Affiant', owner)}
+        ${fRow('County of', deal.Physical_City)}
+        ${fRow('State of', deal.Physical_State)}
+      </div>
+      <div class="section">
+        <div class="section-label">Section I â Applicant (Page 1)</div>
+        ${fRow('Legal Name', deal.Deal_Name)}
+        ${fRow('Business Address', deal.Physical_Street)}
+        ${fRow('City', deal.Physical_City)}
+        ${fRow('State', deal.Physical_State)}
+        ${fRow('Zip', deal.Physical_Zip)}
+        ${fRow('Mailing Address', mailStreet || '(same as physical)')}
+        ${fRow('Phone', deal.Business_Phone_Number)}
+        ${fRow('Email', deal.Email)}
+      </div>
+      <div class="section">
+        <div class="section-label">Section II â Business Type (Page 1)</div>
+        ${fRow('Structure', bizLabel(deal))}
+        ${fRow('USDOT #', deal.USDOT)}
+        ${fRow('MC #', deal.MC_Number)}
+      </div>
+      <div class="section">
+        <div class="section-label">Appendix B + Form B-2 (Pages 4 &amp; 7)</div>
+        ${fRow('Legal Name', deal.Deal_Name)}
+        ${fRow('Mailing Address', mailStreet || deal.Physical_Street)}
+      </div>
+      <div class="warn-box">â  <b>Coordinate overlay:</b> This form has no fillable fields. Text is drawn at fixed positions over the PDF. Review all pages carefully after download and correct any misaligned fields by hand.</div>
+      <div class="warn-box" style="margin-top:0">â  Sections IIIâV, Appendices CâD, vehicle lists, insurance attachments, and the $100 filing fee must be completed manually.</div>
+      <p class="hint">The PDF stays editable after download â you can add text annotations in Acrobat or Preview.</p>
+      <button class="btn btn-success" id="gb">â¬ Generate &amp; Download Alabama Form 14A</button>
+      <div id="ge" class="error-box" style="display:none"></div>
+    </div>`;
+
+  document.getElementById('bb').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('gb').onclick = async () => {
+    const btn = document.getElementById('gb');
+    btn.disabled = true; btn.textContent = 'Generating PDFâ¦';
+    try {
+      const bytes = await fillAlabama14A(deal);
+      downloadPDF(bytes, 'AL-Form-14A', deal.Deal_Name);
+      renderDone(deal);
+    } catch(e) {
+      const err = document.getElementById('ge');
+      err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
+      btn.disabled = false; btn.textContent = 'â¬ Generate & Download Alabama Form 14A';
+    }
+  };
+}
+
+function renderDone(deal) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="success-box">
+        <div class="check-circle">â</div>
+        <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">Alabama Form 14A Downloaded!</h2>
+        <p style="color:#64748b;font-size:14px;margin-bottom:4px">${deal.Deal_Name}</p>
+        <p style="color:#92400e;font-size:12px;background:#fefce8;border:1px solid #fde68a;padding:8px 12px;border-radius:6px;margin-bottom:20px">Review all 7 pages carefully â text is overlaid at fixed coordinates. Correct any misaligned fields by hand before submitting.</p>
+        <button class="btn btn-primary" id="ab" style="margin-right:8px">Generate Another</button>
+        <button class="btn btn-ghost" id="rb">Re-download PDF</button>
+      </div>
+    </div>`;
+  document.getElementById('ab').onclick = () => renderSearch(null, renderPreview);
+  document.getElementById('rb').onclick = async () => {
+    try { downloadPDF(await fillAlabama14A(deal), 'AL-Form-14A', deal.Deal_Name); }
+    catch(e) { alert('Error: ' + e.message); }
+  };
+}
+
+// âââ Boot ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+(async function boot() {
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (id) {
+    renderLoading('Loading deal from Zoho CRMâ¦');
+    try { renderPreview(await fetchDeal(id)); }
+    catch(e) {
+      if (e instanceof AuthRequiredError) {
+        renderSignIn(async () => {
+          renderLoading('Loading deal from Zoho CRMâ¦');
+          try { renderPreview(await fetchDeal(id)); }
+          catch(err) { renderSearch('Could not load deal: ' + err.message, renderPreview); }
+        });
+      } else {
+        renderSearch('Could not load deal: ' + e.message, renderPreview);
+      }
+    }
+  } else {
+    renderSearch(null, renderPreview);
+  }
+})();
+</script>
+</body>
+</html>
