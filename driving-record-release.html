@@ -33,6 +33,7 @@ input[type="text"]:focus { border-color: #2563eb; }
 .driver-item:hover { border-color: #16a34a; background: #f0fdf4; }
 .driver-name { font-weight: 600; font-size: 15px; }
 .driver-meta { font-size: 12px; color: #64748b; margin-top: 4px; font-family: monospace; }
+.role-badge { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 600; color: #1d4ed8; background: #dbeafe; padding: 2px 8px; border-radius: 20px; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-transform: uppercase; letter-spacing: .4px; }
 .field-row { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
 .field-label { width: 170px; flex-shrink: 0; font-size: 11px; color: #94a3b8; font-family: monospace; padding-top: 1px; }
 .field-value { font-size: 13px; color: #1e293b; word-break: break-word; }
@@ -154,15 +155,23 @@ function stateAbbrev(name) {
   return key.slice(0, 2).toUpperCase();                    // graceful fallback
 }
 
-// Driver extraction — source-pluggable so a future Drug_and_Alcohol source can be
+// Applicant extraction — source-pluggable so a future Drug_and_Alcohol source can be
 // added without rewriting the page. Default source: the Deal's Owner_and_Driver subform.
-function getDrivers(deal, source) {
+// Returns ANYONE who can have a driving record pulled (Owner, Driver, Member, etc.) —
+// any row with a non-empty Full_Name. Role (Owner_Driver) is shown as a badge, not a filter.
+function getApplicants(deal, source) {
   source = source || 'subform';
   if (source === 'subform') {
     const rows = Array.isArray(deal.Owner_and_Driver) ? deal.Owner_and_Driver : [];
-    return rows.filter(r => r && r.Owner_Driver === 'Driver');
+    return rows.filter(r => r && r.Full_Name && String(r.Full_Name).trim());
   }
   return []; // future: 'drug_and_alcohol'
+}
+
+// Role badge text from the Owner_Driver picklist (blank/-None- → "—")
+function roleLabel(row) {
+  const v = (row && row.Owner_Driver || '').trim();
+  return (!v || v === '-None-') ? '—' : v;
 }
 
 // ─── Field mapping → PDF field names (case-sensitive, confirmed via inspection) ─
@@ -284,48 +293,48 @@ function renderDealPick(results) {
   });
 }
 
-// Decide: picker, straight-to-preview, or no-drivers
+// Decide: picker, straight-to-preview, or no-applicants
 function onDealLoaded(deal) {
-  const drivers = getDrivers(deal);
-  if (drivers.length === 0)      renderNoDrivers(deal);
-  else if (drivers.length === 1) renderPreview(deal, drivers[0], drivers);
-  else                           renderDriverPicker(deal, drivers);
+  const applicants = getApplicants(deal);
+  if (applicants.length === 0)      renderNoApplicants(deal);
+  else if (applicants.length === 1) renderPreview(deal, applicants[0], applicants);
+  else                              renderApplicantPicker(deal, applicants);
 }
 
-function renderNoDrivers(deal) {
+function renderNoApplicants(deal) {
   app.innerHTML = `
     <div class="card">
       <div class="back-row">
-        <div><div class="card-title" style="margin-bottom:0">No drivers found</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
+        <div><div class="card-title" style="margin-bottom:0">No applicants found</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
         <button class="btn btn-ghost" id="bb">← Search</button>
       </div>
       <div class="warn-box" style="margin-bottom:0">
-        No drivers found in this Deal's Owner and Driver subform.
-        Add a row with <b>Owner/Driver = Driver</b> in Zoho, then reload this page.
+        No one found in this Deal's Owner and Driver subform.
+        Add a row first with at least a <b>Full Name</b> in Zoho, then reload this page.
       </div>
     </div>`;
   document.getElementById('bb').onclick = () => renderSearch(null);
 }
 
-function renderDriverPicker(deal, drivers) {
+function renderApplicantPicker(deal, applicants) {
   app.innerHTML = `
     <div class="card">
       <div class="back-row">
-        <div><div class="card-title" style="margin-bottom:0">Select a driver</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
+        <div><div class="card-title" style="margin-bottom:0">Select an applicant</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
         <button class="btn btn-ghost" id="bb">← Search</button>
       </div>
-      <p class="hint" style="margin-top:0;margin-bottom:14px">This form is generated per driver. Pick the driver to prefill.</p>
-      ${drivers.map((d, i) => `<div class="driver-item" data-i="${i}">
+      <p class="hint" style="margin-top:0;margin-bottom:14px">This form is generated per person. Pick whoever is having their driving record pulled.</p>
+      ${applicants.map((d, i) => `<div class="driver-item" data-i="${i}">
         <div>
-          <div class="driver-name">${esc(d.Full_Name || '(no name)')}</div>
-          <div class="driver-meta">${[d.Drivers_License_Number ? 'Lic# ' + d.Drivers_License_Number : null, d.Drivers_License_State, d.CDL_or_Non_CDL].filter(Boolean).map(esc).join('  ·  ')}</div>
+          <div class="driver-name">${esc(d.Full_Name || '(no name)')}<span class="role-badge">${esc(roleLabel(d))}</span></div>
+          <div class="driver-meta">${[d.Drivers_License_Number ? 'DL: ' + d.Drivers_License_Number : null, d.Drivers_License_State ? '(' + stateAbbrev(d.Drivers_License_State) + ')' : null, d.CDL_or_Non_CDL].filter(Boolean).map(esc).join('  ·  ')}</div>
         </div>
         <span style="color:#94a3b8;font-size:20px">›</span>
       </div>`).join('')}
     </div>`;
   document.getElementById('bb').onclick = () => renderSearch(null);
   document.querySelectorAll('.driver-item').forEach(el => {
-    el.onclick = () => renderPreview(deal, drivers[+el.dataset.i], drivers);
+    el.onclick = () => renderPreview(deal, applicants[+el.dataset.i], applicants);
   });
 }
 
@@ -333,18 +342,18 @@ function fRow(label, value) {
   return !value ? '' : `<div class="field-row"><span class="field-label">${esc(label)}</span><span class="field-value">${esc(value)}</span></div>`;
 }
 
-function renderPreview(deal, drv, drivers) {
-  const multi = drivers && drivers.length > 1;
+function renderPreview(deal, drv, applicants) {
+  const multi = applicants && applicants.length > 1;
   const issue = stateAbbrev(drv.Drivers_License_State);
   const cityLine = [deal.Physical_City, deal.Physical_State, deal.Physical_Zip].filter(Boolean).join(', ');
   app.innerHTML = `
     <div class="card">
       <div class="back-row">
         <div><div class="card-title" style="margin-bottom:0">Confirm data</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
-        <button class="btn btn-ghost" id="bb">← ${multi ? 'Drivers' : 'Search'}</button>
+        <button class="btn btn-ghost" id="bb">← ${multi ? 'Applicants' : 'Search'}</button>
       </div>
       <div class="owner-box">
-        <div class="section-label">Driver (Applicant)</div>
+        <div class="section-label">Applicant${roleLabel(drv) !== '—' ? ' — ' + esc(roleLabel(drv)) : ''}</div>
         ${fRow('Applicants Name', drv.Full_Name)}
         ${fRow('Driving License Number', drv.Drivers_License_Number)}
         ${fRow('State of Issue', issue + (drv.Drivers_License_State ? `  (${drv.Drivers_License_State})` : ''))}
@@ -367,14 +376,14 @@ function renderPreview(deal, drv, drivers) {
       <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Driving Record Release</button>
       <div id="ge" class="error-box" style="display:none"></div>
     </div>`;
-  document.getElementById('bb').onclick = () => multi ? renderDriverPicker(deal, drivers) : renderSearch(null);
+  document.getElementById('bb').onclick = () => multi ? renderApplicantPicker(deal, applicants) : renderSearch(null);
   document.getElementById('gb').onclick = async () => {
     const btn = document.getElementById('gb');
     btn.disabled = true; btn.textContent = 'Generating PDF…';
     try {
       const bytes = await fillPDF(PDF_URL, mapFields(deal, drv));
       downloadPDF(bytes, 'Driving_Record_Release', deal.Deal_Name, drv.Full_Name);
-      renderDone(deal, drv, drivers);
+      renderDone(deal, drv, applicants);
     } catch(e) {
       const err = document.getElementById('ge');
       err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
@@ -383,19 +392,19 @@ function renderPreview(deal, drv, drivers) {
   };
 }
 
-function renderDone(deal, drv, drivers) {
+function renderDone(deal, drv, applicants) {
   app.innerHTML = `
     <div class="card">
       <div class="success-box">
         <div class="check-circle">✓</div>
         <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">Driving Record Release Downloaded!</h2>
         <p style="color:#64748b;font-size:14px;margin-bottom:24px">${esc(deal.Deal_Name || '')} — ${esc(drv.Full_Name || '')}</p>
-        ${drivers && drivers.length > 1 ? `<button class="btn btn-primary" id="db" style="margin-right:8px">Pick Another Driver</button>` : ''}
+        ${applicants && applicants.length > 1 ? `<button class="btn btn-primary" id="db" style="margin-right:8px">Pick Another Applicant</button>` : ''}
         <button class="btn btn-ghost" id="ab" style="margin-right:8px">Search Another Deal</button>
         <button class="btn btn-ghost" id="rb">Re-download PDF</button>
       </div>
     </div>`;
-  if (drivers && drivers.length > 1) document.getElementById('db').onclick = () => renderDriverPicker(deal, drivers);
+  if (applicants && applicants.length > 1) document.getElementById('db').onclick = () => renderApplicantPicker(deal, applicants);
   document.getElementById('ab').onclick = () => renderSearch(null);
   document.getElementById('rb').onclick = async () => {
     try { downloadPDF(await fillPDF(PDF_URL, mapFields(deal, drv)), 'Driving_Record_Release', deal.Deal_Name, drv.Full_Name); }
