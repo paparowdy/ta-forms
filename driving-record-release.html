@@ -74,6 +74,7 @@ input[type="text"]:focus { border-color: #2563eb; }
 // ─── Config ────────────────────────────────────────────────────────────────
 const WORKER  = 'https://zoho-proxy.oscarmh00.workers.dev';
 const PDF_URL = 'Driving-Record-Release.pdf';
+const FIELD_FONT_SIZE = 9;   // fixed fill font size to match the form's template text
 
 // ─── Worker / Zoho access ────────────────────────────────────────────────────
 class AuthRequiredError extends Error {
@@ -121,11 +122,18 @@ async function fillPDF(pdfUrl, fieldValues) {
     const val  = fieldValues[name];
     if (val == null || val === '') continue;
     try {
-      if (field instanceof PDFLib.PDFTextField) field.setText(String(val));
+      if (field instanceof PDFLib.PDFTextField) {
+        // Fixed small font (≈ template body size) instead of pdf-lib's auto-size,
+        // which blows the text up to fill the field height.
+        try { field.setFontSize(FIELD_FONT_SIZE); } catch {}
+        field.setText(String(val));
+      }
     } catch {}
   }
   form.getFields().forEach(f => { try { f.updateAppearances(helv); } catch {} });
-  form.flatten();
+  // NOT flattened — fields stay editable so staff can adjust values in any PDF viewer.
+  // NeedAppearances asks viewers to re-render field appearances after an edit.
+  try { form.acroForm.dict.set(PDFLib.PDFName.of('NeedAppearances'), PDFLib.PDFBool.True); } catch {}
   return pdfDoc.save();
 }
 
@@ -134,6 +142,16 @@ function ownerName(deal) {
   return deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '';
 }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Format a phone number as (###) ###-#### when it has 10 digits (or 11 leading with 1).
+// Falls back to the original value if it isn't a standard US number.
+function formatPhone(v) {
+  if (v == null) return '';
+  let n = String(v).replace(/\D/g, '');
+  if (n.length === 11 && n[0] === '1') n = n.slice(1);
+  if (n.length === 10) return `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}`;
+  return String(v).trim();
+}
 
 // Spelled-out state name → USPS 2-letter code (for the narrow "State of Issue" field)
 const STATE_ABBR = {
@@ -183,7 +201,7 @@ function mapFields(deal, drv) {
   // PAGE 1 — Requester (company)
   set('Company Name',  deal.Deal_Name);
   set('Contact Name',  contact);
-  set('Phone',         deal.Business_Phone_Number);
+  set('Phone',         formatPhone(deal.Business_Phone_Number));
   // 'Fax' — leave blank
   set('Email Address', deal.Email);
 
@@ -194,7 +212,7 @@ function mapFields(deal, drv) {
   set('St',                     deal.Physical_State);   // already 2-letter in Zoho
   set('Zip',                    deal.Physical_Zip);
   // 'Date of Birth', 'undefined', 'undefined_2' — DOB sub-fields, leave blank
-  set('Phone_2',                deal.Business_Phone_Number);
+  set('Phone_2',                formatPhone(deal.Business_Phone_Number));
   set('Driving License Number', drv.Drivers_License_Number);
   set('State of Issue',         stateAbbrev(drv.Drivers_License_State));
   // 'Date' — driver signs/dates in person, leave blank
@@ -362,7 +380,7 @@ function renderPreview(deal, drv, applicants) {
         <div class="section-label">Requester (Company)</div>
         ${fRow('Company Name', deal.Deal_Name)}
         ${fRow('Contact Name', (deal.Contact_Name && deal.Contact_Name.name) || deal.Owner_1_Full_Name)}
-        ${fRow('Phone', deal.Business_Phone_Number)}
+        ${fRow('Phone', formatPhone(deal.Business_Phone_Number))}
         ${fRow('Email Address', deal.Email)}
       </div>
       <div class="section">
