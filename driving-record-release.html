@@ -203,6 +203,26 @@ function cleanLicense(v) {
   return ['n/a', 'na', '-none-', 'none', 'tbd', ''].includes(s.toLowerCase()) ? '' : s;
 }
 
+// Split a date of birth into { m, d, y } for the form's three DOB boxes
+// (Date of Birth = month, undefined = day, undefined_2 = year). Handles Zoho's
+// ISO "yyyy-mm-dd" and a US "mm/dd/yyyy" fallback; anything else → all blank.
+function splitDOB(v) {
+  if (!v) return { m: '', d: '', y: '' };
+  const s = String(v).trim();
+  let mm, dd, yy;
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) { yy = iso[1]; mm = iso[2].padStart(2, '0'); dd = iso[3].padStart(2, '0'); }
+  else {
+    const us = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (us) { mm = us[1].padStart(2, '0'); dd = us[2].padStart(2, '0'); yy = us[3]; }
+  }
+  return mm ? { m: mm, d: dd, y: yy } : { m: '', d: '', y: '' };
+}
+function dobDisplay(v) {
+  const p = splitDOB(v);
+  return p.m ? `${p.m}/${p.d}/${p.y}` : '';
+}
+
 // Applicant extraction — source-pluggable across two Zoho modules.
 //   • 'deals' (default): the Deal's Owner_and_Driver subform. Any row with a non-empty
 //     Full_Name. The Owner_Driver value is shown as the picker badge (Owner/Driver/—).
@@ -222,6 +242,7 @@ function getApplicants(record, source) {
         Full_Name: [r.First_Name, r.Last_Name].filter(v => v && String(v).trim()).join(' ').replace(/\s+/g, ' ').trim(),
         Drivers_License_Number: cleanLicense(r.DL_Number),
         Drivers_License_State: r.DL_State || '',
+        DOB: r.Birth_Date || '',        // D&A stores DOB as Birth_Date
         Owner_Driver: r.Status || '',   // picker badge shows D&A Status (Active/Inactive/…)
         CDL_or_Non_CDL: null
       }));
@@ -229,6 +250,21 @@ function getApplicants(record, source) {
   // Default Deals path — unchanged.
   const rows = Array.isArray(record.Owner_and_Driver) ? record.Owner_and_Driver : [];
   return rows.filter(r => r && r.Full_Name && String(r.Full_Name).trim());
+}
+
+// Load a D&A record and enrich its Contact Name from the linked Deal (Company lookup).
+// The D&A record's own DER_Name is kept only as a fallback when no linked deal/contact.
+async function loadDARecord(id) {
+  const da  = await fetchDA(id);
+  const rec = buildRecordFromDA(da);
+  if (da.Company && da.Company.id) {
+    try {
+      const linked = await fetchDeal(da.Company.id);
+      const cn = linked && linked.Contact_Name && linked.Contact_Name.name;
+      if (cn) rec.Contact_Name = { name: cn };   // contact from the associated Deal
+    } catch (e) { /* keep DER_Name fallback */ }
+  }
+  return rec;
 }
 
 // Normalize a raw Drug_and_Alcohol record into the same internal shape the renderers
@@ -276,7 +312,11 @@ function mapFields(deal, drv) {
   set('City',                   deal.Physical_City);
   set('St',                     deal.Physical_State);   // already 2-letter in Zoho
   set('Zip',                    deal.Physical_Zip);
-  // 'Date of Birth', 'undefined', 'undefined_2' — DOB sub-fields, leave blank
+  // DOB boxes (month / day / year) from the subform — Deals: DOB, D&A: Birth_Date (mapped to DOB)
+  const dob = splitDOB(drv.DOB);
+  set('Date of Birth', dob.m);   // month box
+  set('undefined',     dob.d);   // day box
+  set('undefined_2',   dob.y);   // year box
   set('Phone_2',                formatPhone(deal.Business_Phone_Number));
   set('Driving License Number', drv.Drivers_License_Number);
   set('State of Issue',         stateAbbrev(drv.Drivers_License_State));
@@ -441,6 +481,7 @@ function renderPreview(deal, drv, applicants) {
       <div class="owner-box">
         <div class="section-label">Applicant${roleLabel(drv) !== '—' ? ' — ' + esc(roleLabel(drv)) : ''}</div>
         ${fRow('Applicants Name', drv.Full_Name)}
+        ${fRow('Date of Birth', dobDisplay(drv.DOB))}
         ${fRow('Driving License Number', drv.Drivers_License_Number)}
         ${fRow('State of Issue', (issue || '—') + (drv.Drivers_License_State ? `  (${drv.Drivers_License_State})` : ''))}
       </div>
@@ -457,7 +498,7 @@ function renderPreview(deal, drv, applicants) {
         ${fRow('City / St / Zip', cityLine)}
       </div>
       <div class="warn-box" style="margin-top:8px">
-        ⚠ Date of Birth and signature dates are left blank — the driver completes and signs these in person. Pages 3–4 (FCRA notices) are unchanged.
+        ⚠ Signature lines and signature dates are left blank for the driver to sign in person. Date of Birth is prefilled when on file in Zoho. Pages 3–4 (FCRA notices) are unchanged.
       </div>
       <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Driving Record Release</button>
       <div id="ge" class="error-box" style="display:none"></div>
@@ -509,7 +550,7 @@ function renderDone(deal, drv, applicants) {
 
   const msg  = isDA ? 'Loading record from Zoho CRM…' : 'Loading deal from Zoho CRM…';
   const load = isDA
-    ? async () => onDealLoaded(buildRecordFromDA(await fetchDA(id)))
+    ? async () => onDealLoaded(await loadDARecord(id))
     : async () => onDealLoaded(await fetchDeal(id));
 
   renderLoading(msg);
