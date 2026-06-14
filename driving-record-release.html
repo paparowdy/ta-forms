@@ -117,27 +117,26 @@ async function fillPDF(pdfUrl, fieldValues) {
   const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
   const form   = pdfDoc.getForm();
   const helv   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+  const targetH = FIELD_FONT_SIZE + 5;
   for (const field of form.getFields()) {
+    if (!(field instanceof PDFLib.PDFTextField)) continue;
     const name = field.getName();
     const val  = fieldValues[name];
-    if (val == null || val === '') continue;
     try {
-      if (field instanceof PDFLib.PDFTextField) {
-        // Fixed small font (≈ template body size) instead of pdf-lib's auto-size,
-        // which blows the text up to fill the field height.
-        try { field.setFontSize(FIELD_FONT_SIZE); } catch {}
-        field.setText(String(val));
-        // Tall field boxes vertically-center the text, so it floats high above the
-        // printed underline. Shrink the box from the top (keep the bottom fixed) so
-        // the centered line drops down and sits just above the underline.
-        try {
-          const targetH = FIELD_FONT_SIZE + 5;
-          for (const w of field.acroField.getWidgets()) {
-            const r = w.getRectangle();
-            if (r.height > targetH) w.setRectangle({ x: r.x, y: r.y, width: r.width, height: targetH });
-          }
-        } catch {}
-      }
+      // Apply the fixed small font to EVERY text field — including ones we leave blank
+      // (Date of Birth, Date, Date_2, Fax) — so staff edits render at the same size
+      // instead of the viewer's large auto-size.
+      try { field.setFontSize(FIELD_FONT_SIZE); } catch {}
+      // Tall boxes vertically-center text, so it floats above the underline. Shrink the
+      // box from the top (bottom fixed) so both prefilled AND typed text sit on the line.
+      try {
+        for (const w of field.acroField.getWidgets()) {
+          const r = w.getRectangle();
+          if (r.height > targetH) w.setRectangle({ x: r.x, y: r.y, width: r.width, height: targetH });
+        }
+      } catch {}
+      // Fill the value if we have one for this field.
+      if (val != null && val !== '') field.setText(String(val));
     } catch {}
   }
   form.getFields().forEach(f => { try { f.updateAppearances(helv); } catch {} });
