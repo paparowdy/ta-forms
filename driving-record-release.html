@@ -142,8 +142,10 @@ async function fillPDF(pdfUrl, fieldValues) {
   }
   form.getFields().forEach(f => { try { f.updateAppearances(helv); } catch {} });
   // NOT flattened — fields stay editable so staff can adjust values in any PDF viewer.
-  // NeedAppearances asks viewers to re-render field appearances after an edit.
-  try { form.acroForm.dict.set(PDFLib.PDFName.of('NeedAppearances'), PDFLib.PDFBool.True); } catch {}
+  // We deliberately do NOT set NeedAppearances: that flag makes viewers discard our
+  // generated appearance streams and re-center the text vertically, which lifts it off
+  // the line. Leaving it unset means viewers honor the on-the-line positioning above,
+  // and fields remain fully editable.
   return pdfDoc.save();
 }
 
