@@ -99,6 +99,10 @@ async function searchDeals(q) {
 async function fetchDeal(id) {
   return callWorker(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
 }
+// Drug & Alcohol module record (second source path)
+async function fetchDA(id) {
+  return callWorker(`${WORKER}?action=da&id=${encodeURIComponent(id)}`);
+}
 
 // ─── PDF fill (direct field-fill) ────────────────────────────────────────────
 function downloadPDF(bytes, prefix, dealName, driverName) {
@@ -176,28 +180,78 @@ const STATE_ABBR = {
   'South Dakota':'SD','Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT','Virginia':'VA',
   'Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY'
 };
+const STATE_CODES = new Set(Object.values(STATE_ABBR)); // valid USPS 2-letter codes (incl. DC)
+// Real US state (2-letter OR spelled-out, any case) → 2-letter code. Anything that is
+// not a real state (junk, "N/A", blanks) → '' so the narrow PDF field is left blank.
 function stateAbbrev(name) {
   if (!name) return '';
   const key = String(name).trim();
-  if (STATE_ABBR[key]) return STATE_ABBR[key];
-  if (/^[A-Za-z]{2}$/.test(key)) return key.toUpperCase(); // already a 2-letter code
-  return key.slice(0, 2).toUpperCase();                    // graceful fallback
-}
-
-// Applicant extraction — source-pluggable so a future Drug_and_Alcohol source can be
-// added without rewriting the page. Default source: the Deal's Owner_and_Driver subform.
-// Returns ANYONE who can have a driving record pulled (Owner, Driver, Member, etc.) —
-// any row with a non-empty Full_Name. Role (Owner_Driver) is shown as a badge, not a filter.
-function getApplicants(deal, source) {
-  source = source || 'subform';
-  if (source === 'subform') {
-    const rows = Array.isArray(deal.Owner_and_Driver) ? deal.Owner_and_Driver : [];
-    return rows.filter(r => r && r.Full_Name && String(r.Full_Name).trim());
+  if (!key) return '';
+  if (STATE_ABBR[key]) return STATE_ABBR[key];                 // exact spelled-out
+  const up = key.toUpperCase();
+  for (const full in STATE_ABBR) {                             // case-insensitive spelled-out
+    if (full.toUpperCase() === up) return STATE_ABBR[full];
   }
-  return []; // future: 'drug_and_alcohol'
+  if (up.length === 2 && STATE_CODES.has(up)) return up;       // valid 2-letter code
+  return '';                                                   // not a real state → blank
 }
 
-// Role badge text from the Owner_Driver picklist (blank/-None- → "—")
+// License-number cleaner: blank out placeholder values (used on the D&A path).
+function cleanLicense(v) {
+  if (v == null) return '';
+  const s = String(v).trim();
+  return ['n/a', 'na', '-none-', 'none', 'tbd', ''].includes(s.toLowerCase()) ? '' : s;
+}
+
+// Applicant extraction — source-pluggable across two Zoho modules.
+//   • 'deals' (default): the Deal's Owner_and_Driver subform. Any row with a non-empty
+//     Full_Name. The Owner_Driver value is shown as the picker badge (Owner/Driver/—).
+//   • 'da': the Drug_and_Alcohol record's Drivers_Information subform. Names are split
+//     (First_Name + Last_Name), license fields are named differently (DL_Number/DL_State),
+//     and the badge shows the row's Status instead of a role.
+// Both branches return rows in ONE internal shape so every downstream renderer and
+// mapFields() work unchanged: { Full_Name, Drivers_License_Number, Drivers_License_State,
+// Owner_Driver(=badge text), CDL_or_Non_CDL }.
+function getApplicants(record, source) {
+  source = source || record._source || 'deals';
+  if (source === 'da') {
+    const rows = Array.isArray(record.Drivers_Information) ? record.Drivers_Information : [];
+    return rows
+      .filter(r => r && r.First_Name && String(r.First_Name).trim())
+      .map(r => ({
+        Full_Name: [r.First_Name, r.Last_Name].filter(v => v && String(v).trim()).join(' ').replace(/\s+/g, ' ').trim(),
+        Drivers_License_Number: cleanLicense(r.DL_Number),
+        Drivers_License_State: r.DL_State || '',
+        Owner_Driver: r.Status || '',   // picker badge shows D&A Status (Active/Inactive/…)
+        CDL_or_Non_CDL: null
+      }));
+  }
+  // Default Deals path — unchanged.
+  const rows = Array.isArray(record.Owner_and_Driver) ? record.Owner_and_Driver : [];
+  return rows.filter(r => r && r.Full_Name && String(r.Full_Name).trim());
+}
+
+// Normalize a raw Drug_and_Alcohol record into the same internal shape the renderers
+// and mapFields() already expect from a Deal. Address policy: Physical_* only.
+function buildRecordFromDA(da) {
+  return {
+    _source: 'da',
+    Deal_Name:             da.Name,
+    Contact_Name:          da.DER_Name ? { name: da.DER_Name } : null,
+    Owner_1_Full_Name:     null,
+    Business_Phone_Number: da.Phone,
+    Email:                 da.Email || da.DER_Email,
+    Physical_Street:       da.Physical_Street,
+    Physical_City:         da.Physical_City,
+    Physical_State:        da.Physical_State,
+    Physical_Zip:          da.Physical_Zip,
+    USDOT:                 da.USDOT_Number,
+    Drivers_Information:    Array.isArray(da.Drivers_Information) ? da.Drivers_Information : []
+  };
+}
+
+// Picker / preview badge text. For Deals it's the Owner_Driver role; for D&A it's the
+// Status (mapped into Owner_Driver by getApplicants). Blank/-None- → "—".
 function roleLabel(row) {
   const v = (row && row.Owner_Driver || '').trim();
   return (!v || v === '-None-') ? '—' : v;
@@ -324,13 +378,16 @@ function renderDealPick(results) {
 
 // Decide: picker, straight-to-preview, or no-applicants
 function onDealLoaded(deal) {
-  const applicants = getApplicants(deal);
+  const applicants = getApplicants(deal, deal._source);
   if (applicants.length === 0)      renderNoApplicants(deal);
   else if (applicants.length === 1) renderPreview(deal, applicants[0], applicants);
   else                              renderApplicantPicker(deal, applicants);
 }
 
 function renderNoApplicants(deal) {
+  const isDA = deal._source === 'da';
+  const where = isDA ? "this record's Drivers Information subform" : "this Deal's Owner and Driver subform";
+  const fix   = isDA ? 'with at least a <b>First Name</b>' : 'with at least a <b>Full Name</b>';
   app.innerHTML = `
     <div class="card">
       <div class="back-row">
@@ -338,8 +395,8 @@ function renderNoApplicants(deal) {
         <button class="btn btn-ghost" id="bb">← Search</button>
       </div>
       <div class="warn-box" style="margin-bottom:0">
-        No one found in this Deal's Owner and Driver subform.
-        Add a row first with at least a <b>Full Name</b> in Zoho, then reload this page.
+        No one found in ${where}.
+        Add a row first ${fix} in Zoho, then reload this page.
       </div>
     </div>`;
   document.getElementById('bb').onclick = () => renderSearch(null);
@@ -385,7 +442,7 @@ function renderPreview(deal, drv, applicants) {
         <div class="section-label">Applicant${roleLabel(drv) !== '—' ? ' — ' + esc(roleLabel(drv)) : ''}</div>
         ${fRow('Applicants Name', drv.Full_Name)}
         ${fRow('Driving License Number', drv.Drivers_License_Number)}
-        ${fRow('State of Issue', issue + (drv.Drivers_License_State ? `  (${drv.Drivers_License_State})` : ''))}
+        ${fRow('State of Issue', (issue || '—') + (drv.Drivers_License_State ? `  (${drv.Drivers_License_State})` : ''))}
       </div>
       <div class="section">
         <div class="section-label">Requester (Company)</div>
@@ -441,25 +498,32 @@ function renderDone(deal, drv, applicants) {
   };
 }
 
-// ─── Boot: handle ?id= deep-link from the Deal's "Generate Form" button ───────
+// ─── Boot: handle deep-links from the "Generate Form" button ──────────────────
+//   ?id=DEAL_ID                → Deals path (default)
+//   ?id=DA_RECORD_ID&module=da → Drug & Alcohol path
 (async function boot() {
-  const id = new URLSearchParams(window.location.search).get('id');
-  if (id) {
-    renderLoading('Loading deal from Zoho CRM…');
-    try { onDealLoaded(await fetchDeal(id)); }
-    catch(e) {
-      if (e instanceof AuthRequiredError) {
-        renderSignIn(async () => {
-          renderLoading('Loading deal from Zoho CRM…');
-          try { onDealLoaded(await fetchDeal(id)); }
-          catch(err) { renderSearch('Could not load deal: ' + err.message); }
-        });
-      } else {
-        renderSearch('Could not load deal: ' + e.message);
-      }
+  const params = new URLSearchParams(window.location.search);
+  const id     = params.get('id');
+  const isDA   = (params.get('module') || '').toLowerCase() === 'da';
+  if (!id) { renderSearch(null); return; }
+
+  const msg  = isDA ? 'Loading record from Zoho CRM…' : 'Loading deal from Zoho CRM…';
+  const load = isDA
+    ? async () => onDealLoaded(buildRecordFromDA(await fetchDA(id)))
+    : async () => onDealLoaded(await fetchDeal(id));
+
+  renderLoading(msg);
+  try { await load(); }
+  catch(e) {
+    if (e instanceof AuthRequiredError) {
+      renderSignIn(async () => {
+        renderLoading(msg);
+        try { await load(); }
+        catch(err) { renderSearch('Could not load record: ' + err.message); }
+      });
+    } else {
+      renderSearch('Could not load record: ' + e.message);
     }
-  } else {
-    renderSearch(null);
   }
 })();
 </script>

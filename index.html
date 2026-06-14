@@ -140,8 +140,12 @@ const ALL_FORMS = [
   },
 ];
 
-function tileHTML(form, dealId) {
-  const href = dealId ? `${form.href}?id=${encodeURIComponent(dealId)}` : form.href;
+function tileHTML(form, dealId, module) {
+  let href = form.href;
+  if (dealId) {
+    href += `?id=${encodeURIComponent(dealId)}`;
+    if (module) href += `&module=${encodeURIComponent(module)}`;
+  }
   return `
     <a href="${href}" class="form-tile">
       <div class="form-tile-icon">${form.icon}</div>
@@ -183,14 +187,14 @@ async function renderDealView(id) {
   try {
     const res = await fetch(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`, { credentials: 'include' });
     if (res.status === 401 || res.status === 403 || res.redirected || !res.headers.get('content-type')?.includes('json')) {
-      renderSignIn(id);
+      renderSignIn(() => renderDealView(id));
       return;
     }
     if (!res.ok) throw new Error(`Worker returned ${res.status}`);
     deal = await res.json();
     if (deal.error) throw new Error(deal.error);
   } catch(e) {
-    if (e.message === 'Failed to fetch') { renderSignIn(id); return; }
+    if (e.message === 'Failed to fetch') { renderSignIn(() => renderDealView(id)); return; }
     document.getElementById('app').innerHTML = `<div class="card"><div class="error-box">Could not load deal: ${e.message}</div><p class="hint" style="margin-top:8px"><a href="index.html">← Back to all forms</a></p></div>`;
     return;
   }
@@ -227,7 +231,7 @@ async function renderDealView(id) {
   document.getElementById('app').innerHTML = html;
 }
 
-function renderSignIn(dealId) {
+function renderSignIn(retry) {
   document.getElementById('app').innerHTML = `
     <div class="card" style="max-width:420px;margin:0 auto">
       <div class="card-title">Sign-in required</div>
@@ -240,14 +244,59 @@ function renderSignIn(dealId) {
   document.getElementById('signin').onclick = () => {
     const w = window.open(WORKER, 'tasignin', 'width=520,height=640');
     const t = setInterval(() => {
-      if (!w || w.closed) { clearInterval(t); renderDealView(dealId); }
+      if (!w || w.closed) { clearInterval(t); if (typeof retry === 'function') retry(); else location.reload(); }
     }, 500);
   };
 }
 
+// ─── Drug & Alcohol view (?module=da): fetch D&A record, show the Driving Record
+//     Release tile (the other forms are Deals-based and don't apply here) ────────
+async function renderDAView(id) {
+  document.getElementById('app').innerHTML = `<div class="card loading-box"><div class="spinner"></div>Loading Drug & Alcohol record from Zoho CRM…</div>`;
+
+  let da;
+  try {
+    const res = await fetch(`${WORKER}?action=da&id=${encodeURIComponent(id)}`, { credentials: 'include' });
+    if (res.status === 401 || res.status === 403 || res.redirected || !res.headers.get('content-type')?.includes('json')) {
+      renderSignIn(() => renderDAView(id));
+      return;
+    }
+    if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+    da = await res.json();
+    if (da.error) throw new Error(da.error);
+  } catch(e) {
+    if (e.message === 'Failed to fetch') { renderSignIn(() => renderDAView(id)); return; }
+    document.getElementById('app').innerHTML = `<div class="card"><div class="error-box">Could not load record: ${e.message}</div><p class="hint" style="margin-top:8px"><a href="index.html">← Back to all forms</a></p></div>`;
+    return;
+  }
+
+  const dot = da.USDOT_Number ? `DOT# ${da.USDOT_Number}` : '';
+  const loc = [da.Physical_City, da.Physical_State].filter(Boolean).join(', ');
+  const daForms = ALL_FORMS.filter(f => f.id === 'driving-record-release');
+
+  document.getElementById('app').innerHTML = `
+    <div class="deal-banner">
+      <div class="deal-banner-label">Generate a form for</div>
+      <div class="deal-banner-name">${da.Name || '(unnamed record)'}<span class="state-badge">Drug &amp; Alcohol</span></div>
+      <div class="deal-banner-meta">${[dot, da.DER_Name, loc].filter(Boolean).join('  ·  ')}</div>
+    </div>
+    <div class="section-divider">Available Forms</div>
+    <div class="form-grid">
+      ${daForms.map(f => tileHTML(f, id, 'da')).join('')}
+    </div>
+    <p class="hint" style="text-align:center;margin-top:24px">
+      Launched from the Drug &amp; Alcohol module — drivers are pulled from this record's Drivers Information.<br>
+      <a href="index.html">← View all forms</a>
+    </p>`;
+}
+
 // ─── Boot ──────────────────────────────────────────────────────────────────────
-const dealId = new URLSearchParams(window.location.search).get('id');
-if (dealId) {
+const _params = new URLSearchParams(window.location.search);
+const dealId  = _params.get('id');
+const _module = (_params.get('module') || '').toLowerCase();
+if (dealId && _module === 'da') {
+  renderDAView(dealId);
+} else if (dealId) {
   renderDealView(dealId);
 } else {
   renderStatic();
