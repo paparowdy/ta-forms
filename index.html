@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TA Forms â Truckers Authority</title>
+<title>TA Forms — Truckers Authority</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
@@ -55,7 +55,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="logo">TA</div>
   <div>
     <h1>Forms Generator</h1>
-    <p>Truckers Authority Â· Internal Tool</p>
+    <p>Truckers Authority · Internal Tool</p>
   </div>
 </div>
 
@@ -64,11 +64,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <script>
 const WORKER = 'https://zoho-proxy.oscarmh00.workers.dev';
 
-// âââ All form definitions ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── All form definitions ──────────────────────────────────────────────────────
 const ALL_FORMS = [
   {
     id: 'mcs150',
-    icon: 'ð',
+    icon: '📋',
     name: 'MCS-150',
     desc: 'FMCSA Motor Carrier Identification Report. Required for new USDOT registration and biennial updates.',
     href: 'mcs150.html',
@@ -77,7 +77,7 @@ const ALL_FORMS = [
   },
   {
     id: 'mcsa5889',
-    icon: 'ð',
+    icon: '🔄',
     name: 'MCSA-5889',
     desc: 'Motor Carrier Records Change Request. Use to update carrier info, address changes, or reinstatement after revocation.',
     href: 'mcsa5889.html',
@@ -86,7 +86,7 @@ const ALL_FORMS = [
   },
   {
     id: 'oce46',
-    icon: 'ð',
+    icon: '📄',
     name: 'OCE-46',
     desc: 'FMCSA Request for Operating Authority. Notarized request form for new or reinstated operating authority.',
     href: 'oce46.html',
@@ -94,9 +94,18 @@ const ALL_FORMS = [
     badge: 'Federal',
   },
   {
+    id: 'driving-record-release',
+    icon: '🪪',
+    name: 'Driving Record Release',
+    desc: 'TR Information Services — per-driver driving record consent form. Applies to every carrier.',
+    href: 'driving-record-release.html',
+    states: null,   // always show for every Deal
+    badge: 'Per-Driver',
+  },
+  {
     id: 'mc706m',
-    icon: 'ð´',
-    name: 'CA MCP â MC 706 M',
+    icon: '🌴',
+    name: 'CA MCP — MC 706 M',
     desc: 'California Motor Carrier Permit application. Required for carriers operating commercially in California.',
     href: 'mc706m.html',
     states: ['CA'],
@@ -104,7 +113,7 @@ const ALL_FORMS = [
   },
   {
     id: 'or-commercial',
-    icon: 'ð²',
+    icon: '🌲',
     name: 'OR Commercial Registration',
     desc: 'Oregon Commercial Registration Application (Form 9691). Required for commercial vehicle registration with OR DMV.',
     href: 'oregon-commercial-registration.html',
@@ -113,7 +122,7 @@ const ALL_FORMS = [
   },
   {
     id: 'or-weightmile',
-    icon: 'âï¸',
+    icon: '⚖️',
     name: 'OR Weight-Mile Tax Enrollment',
     desc: 'Oregon Weight-Mile Tax Enrollment Application (Form 9076). Required for carriers subject to OR weight-mile tax.',
     href: 'oregon-weight-mile-tax.html',
@@ -122,7 +131,7 @@ const ALL_FORMS = [
   },
   {
     id: 'al-14a',
-    icon: 'ð',
+    icon: '📝',
     name: 'Alabama Form 14A',
     desc: 'APSC Motor Carrier Certificate Application. Required for intrastate property carrier authority in Alabama.',
     href: 'alabama-form-14a.html',
@@ -142,7 +151,7 @@ function tileHTML(form, dealId) {
     </a>`;
 }
 
-// âââ Static view (no ?id=): show all forms ââââââââââââââââââââââââââââââââââââ
+// ─── Static view (no ?id=): show all forms ────────────────────────────────────
 function renderStatic() {
   const federal = ALL_FORMS.filter(f => !f.states);
   const state   = ALL_FORMS.filter(f => f.states);
@@ -150,7 +159,7 @@ function renderStatic() {
   document.getElementById('app').innerHTML = `
     <div class="hero">
       <h2>Prefill Government Forms from Zoho CRM</h2>
-      <p>Select a form below, find the deal in Zoho, and download a prefilled PDF â no manual data entry.</p>
+      <p>Select a form below, find the deal in Zoho, and download a prefilled PDF — no manual data entry.</p>
     </div>
     <div class="section-divider" style="margin-top:28px">Federal Forms</div>
     <div class="form-grid">
@@ -166,9 +175,9 @@ function renderStatic() {
     </p>`;
 }
 
-// âââ Deal view (?id= present): fetch deal, show filtered tiles ââââââââââââââââ
+// ─── Deal view (?id= present): fetch deal, show filtered tiles ────────────────
 async function renderDealView(id) {
-  document.getElementById('app').innerHTML = `<div class="card loading-box"><div class="spinner"></div>Loading deal from Zoho CRMâ¦</div>`;
+  document.getElementById('app').innerHTML = `<div class="card loading-box"><div class="spinner"></div>Loading deal from Zoho CRM…</div>`;
 
   let deal;
   try {
@@ -182,7 +191,7 @@ async function renderDealView(id) {
     if (deal.error) throw new Error(deal.error);
   } catch(e) {
     if (e.message === 'Failed to fetch') { renderSignIn(id); return; }
-    document.getElementById('app').innerHTML = `<div class="card"><div class="error-box">Could not load deal: ${e.message}</div><p class="hint" style="margin-top:8px"><a href="index.html">â Back to all forms</a></p></div>`;
+    document.getElementById('app').innerHTML = `<div class="card"><div class="error-box">Could not load deal: ${e.message}</div><p class="hint" style="margin-top:8px"><a href="index.html">← Back to all forms</a></p></div>`;
     return;
   }
 
@@ -199,7 +208,7 @@ async function renderDealView(id) {
     <div class="deal-banner">
       <div class="deal-banner-label">Generate form for</div>
       <div class="deal-banner-name">${deal.Deal_Name || '(unnamed deal)'}<span class="state-badge">${state || '?'}</span></div>
-      <div class="deal-banner-meta">${[dot, deal.Owner_1_Full_Name, loc].filter(Boolean).join('  Â·  ')}</div>
+      <div class="deal-banner-meta">${[dot, deal.Owner_1_Full_Name, loc].filter(Boolean).join('  ·  ')}</div>
     </div>
     <div class="section-divider">Federal Forms</div>
     <div class="form-grid">
@@ -208,13 +217,13 @@ async function renderDealView(id) {
 
   if (stateSpecific.length) {
     html += `
-    <div class="section-divider">State Forms â ${state}</div>
+    <div class="section-divider">State Forms — ${state}</div>
     <div class="form-grid">
       ${stateSpecific.map(f => tileHTML(f, id)).join('')}
     </div>`;
   }
 
-  html += `<p class="hint" style="text-align:center;margin-top:24px"><a href="index.html">â View all forms</a></p>`;
+  html += `<p class="hint" style="text-align:center;margin-top:24px"><a href="index.html">← View all forms</a></p>`;
   document.getElementById('app').innerHTML = html;
 }
 
@@ -236,7 +245,7 @@ function renderSignIn(dealId) {
   };
 }
 
-// âââ Boot ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── Boot ──────────────────────────────────────────────────────────────────────
 const dealId = new URLSearchParams(window.location.search).get('id');
 if (dealId) {
   renderDealView(dealId);

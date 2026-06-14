@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driving Record Release Auto-Fill — Truckers Authority</title>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<style>
+/* ── Self-contained styles (no external shared/* files) ───────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+.header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.header p  { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+.logo { width: 36px; height: 36px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; color: white; text-decoration: none; }
+.container { max-width: 640px; margin: 32px auto; padding: 0 16px 48px; }
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+.search-row { display: flex; gap: 8px; }
+input[type="text"] { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #1e293b; outline: none; }
+input[type="text"]:focus { border-color: #2563eb; }
+.btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn:hover { opacity: 0.88; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-success { background: #16a34a; color: white; width: 100%; padding: 12px; font-size: 15px; margin-top: 8px; }
+.btn-ghost   { background: transparent; border: 1px solid #e2e8f0; color: #64748b; font-size: 13px; padding: 6px 14px; }
+.result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+.result-item:hover { border-color: #2563eb; background: #eff6ff; }
+.result-name { font-weight: 500; font-size: 14px; }
+.result-meta { font-size: 11px; color: #94a3b8; margin-top: 3px; font-family: monospace; }
+.driver-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; cursor: pointer; transition: border-color .15s, background .15s; }
+.driver-item:hover { border-color: #16a34a; background: #f0fdf4; }
+.driver-name { font-weight: 600; font-size: 15px; }
+.driver-meta { font-size: 12px; color: #64748b; margin-top: 4px; font-family: monospace; }
+.field-row { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
+.field-label { width: 170px; flex-shrink: 0; font-size: 11px; color: #94a3b8; font-family: monospace; padding-top: 1px; }
+.field-value { font-size: 13px; color: #1e293b; word-break: break-word; }
+.section { margin-bottom: 18px; }
+.section-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+.owner-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }
+.owner-box .section-label { color: #16a34a; }
+.warn-box   { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
+.error-box  { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; margin-top: 12px; }
+.success-box { text-align: center; padding: 32px 20px; }
+.check-circle { width: 56px; height: 56px; background: #dcfce7; border: 2px solid #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #16a34a; margin: 0 auto 16px; }
+.spinner { width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-box { text-align: center; padding: 32px; color: #64748b; font-size: 14px; }
+.hint { font-size: 11px; color: #94a3b8; margin-top: 10px; }
+.back-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.deal-title { font-size: 16px; font-weight: 600; margin-top: 2px; }
+@media (max-width: 480px) {
+  .header { padding: 12px 16px; }
+  .container { margin: 16px auto; }
+  .back-row { flex-wrap: wrap; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="logo" title="All Forms">TA</a>
+  <div>
+    <h1>Driving Record Release Auto-Fill</h1>
+    <p>Truckers Authority · TR Information Services — per-driver consent form</p>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<script>
+// ─── Config ────────────────────────────────────────────────────────────────
+const WORKER  = 'https://zoho-proxy.oscarmh00.workers.dev';
+const PDF_URL = 'Driving-Record-Release.pdf';
+
+// ─── Worker / Zoho access ────────────────────────────────────────────────────
+class AuthRequiredError extends Error {
+  constructor() { super('Sign-in required'); this.name = 'AuthRequiredError'; }
+}
+async function callWorker(url) {
+  let res;
+  try { res = await fetch(url, { credentials: 'include' }); }
+  catch (e) { throw new AuthRequiredError(); }
+  if (res.status === 401 || res.status === 403 || res.redirected) throw new AuthRequiredError();
+  if (!res.ok) throw new Error(`Worker returned ${res.status}`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('json')) throw new AuthRequiredError();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+async function searchDeals(q) {
+  const data = await callWorker(`${WORKER}?action=search&word=${encodeURIComponent(q)}`);
+  return Array.isArray(data) ? data : [];
+}
+async function fetchDeal(id) {
+  return callWorker(`${WORKER}?action=deal&id=${encodeURIComponent(id)}`);
+}
+
+// ─── PDF fill (direct field-fill) ────────────────────────────────────────────
+function downloadPDF(bytes, prefix, dealName, driverName) {
+  const clean = s => (s || '').replace(/[^a-zA-Z0-9]/g, '_');
+  const name  = [clean(dealName) || 'client', clean(driverName)].filter(Boolean).join('_');
+  const blob  = new Blob([bytes], { type: 'application/pdf' });
+  const a     = document.createElement('a');
+  a.href      = URL.createObjectURL(blob);
+  a.download  = `${prefix}_${name}.pdf`;
+  a.click();
+}
+async function fillPDF(pdfUrl, fieldValues) {
+  const resp = await fetch(pdfUrl, { cache: 'reload' });
+  if (!resp.ok) throw new Error(`Could not load form PDF (${resp.status}). Ensure the PDF is in the GitHub repo.`);
+  const bytes  = await resp.arrayBuffer();
+  const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+  const form   = pdfDoc.getForm();
+  const helv   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+  for (const field of form.getFields()) {
+    const name = field.getName();
+    const val  = fieldValues[name];
+    if (val == null || val === '') continue;
+    try {
+      if (field instanceof PDFLib.PDFTextField) field.setText(String(val));
+    } catch {}
+  }
+  form.getFields().forEach(f => { try { f.updateAppearances(helv); } catch {} });
+  form.flatten();
+  return pdfDoc.save();
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function ownerName(deal) {
+  return deal.Owner_1_Full_Name || (deal.Contact_Name && deal.Contact_Name.name) || '';
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Spelled-out state name → USPS 2-letter code (for the narrow "State of Issue" field)
+const STATE_ABBR = {
+  'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA','Colorado':'CO',
+  'Connecticut':'CT','Delaware':'DE','District of Columbia':'DC','Florida':'FL','Georgia':'GA',
+  'Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS','Kentucky':'KY',
+  'Louisiana':'LA','Maine':'ME','Maryland':'MD','Massachusetts':'MA','Michigan':'MI','Minnesota':'MN',
+  'Mississippi':'MS','Missouri':'MO','Montana':'MT','Nebraska':'NE','Nevada':'NV','New Hampshire':'NH',
+  'New Jersey':'NJ','New Mexico':'NM','New York':'NY','North Carolina':'NC','North Dakota':'ND','Ohio':'OH',
+  'Oklahoma':'OK','Oregon':'OR','Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC',
+  'South Dakota':'SD','Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT','Virginia':'VA',
+  'Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY'
+};
+function stateAbbrev(name) {
+  if (!name) return '';
+  const key = String(name).trim();
+  if (STATE_ABBR[key]) return STATE_ABBR[key];
+  if (/^[A-Za-z]{2}$/.test(key)) return key.toUpperCase(); // already a 2-letter code
+  return key.slice(0, 2).toUpperCase();                    // graceful fallback
+}
+
+// Driver extraction — source-pluggable so a future Drug_and_Alcohol source can be
+// added without rewriting the page. Default source: the Deal's Owner_and_Driver subform.
+function getDrivers(deal, source) {
+  source = source || 'subform';
+  if (source === 'subform') {
+    const rows = Array.isArray(deal.Owner_and_Driver) ? deal.Owner_and_Driver : [];
+    return rows.filter(r => r && r.Owner_Driver === 'Driver');
+  }
+  return []; // future: 'drug_and_alcohol'
+}
+
+// ─── Field mapping → PDF field names (case-sensitive, confirmed via inspection) ─
+function mapFields(deal, drv) {
+  const f = {};
+  const set = (k, v) => { if (v != null && String(v).trim()) f[k] = String(v).trim(); };
+  const contact = (deal.Contact_Name && deal.Contact_Name.name) || deal.Owner_1_Full_Name;
+
+  // PAGE 1 — Requester (company)
+  set('Company Name',  deal.Deal_Name);
+  set('Contact Name',  contact);
+  set('Phone',         deal.Business_Phone_Number);
+  // 'Fax' — leave blank
+  set('Email Address', deal.Email);
+
+  // PAGE 1 — Applicant (driver)
+  set('Applicants Name',        drv.Full_Name);
+  set('Address',                deal.Physical_Street);
+  set('City',                   deal.Physical_City);
+  set('St',                     deal.Physical_State);   // already 2-letter in Zoho
+  set('Zip',                    deal.Physical_Zip);
+  // 'Date of Birth', 'undefined', 'undefined_2' — DOB sub-fields, leave blank
+  set('Phone_2',                deal.Business_Phone_Number);
+  set('Driving License Number', drv.Drivers_License_Number);
+  set('State of Issue',         stateAbbrev(drv.Drivers_License_State));
+  // 'Date' — driver signs/dates in person, leave blank
+
+  // PAGE 2 — Disclosure
+  set('The Employer',     deal.Deal_Name);
+  set('Applicants Name_2',drv.Full_Name);
+  set('Current Address',  deal.Physical_Street);
+  set('City_2',           deal.Physical_City);
+  set('St_2',             deal.Physical_State);
+  set('Zip_2',            deal.Physical_Zip);
+  // 'Date_2' — leave blank
+
+  // PAGES 3 & 4 — FCRA boilerplate, no fields
+  return f;
+}
+
+// ─── UI ──────────────────────────────────────────────────────────────────────
+const app = document.getElementById('app');
+
+function renderLoading(msg) {
+  app.innerHTML = `<div class="card loading-box"><div class="spinner"></div>${esc(msg)}</div>`;
+}
+function renderSignIn(retryFn) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="card-title">Sign-in required</div>
+      <p style="font-size:14px;color:#475569;margin-bottom:16px">
+        Sign in with your <b>@truckersauthority.com</b> account to use this tool.
+      </p>
+      <button class="btn btn-primary" id="signin">Sign in via Cloudflare</button>
+      <p class="hint" style="margin-top:14px">After signing in the tab will close and you'll return here automatically.</p>
+    </div>`;
+  document.getElementById('signin').onclick = () => {
+    const w = window.open(WORKER, 'tasignin', 'width=520,height=640');
+    const t = setInterval(() => {
+      if (!w || w.closed) { clearInterval(t); if (retryFn) retryFn(); else location.reload(); }
+    }, 500);
+  };
+}
+
+// Deal search (shown when no ?id= param)
+function renderSearch(err) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="card-title">Search deal</div>
+      <div class="search-row">
+        <input type="text" id="si" placeholder="Company name, DOT #, owner name…" autofocus>
+        <button class="btn btn-primary" id="sb">Search →</button>
+      </div>
+      ${err ? `<div class="error-box">${esc(err)}</div>` : ''}
+      <p class="hint" style="margin-top:10px">Search any Deal from Zoho CRM by company name or DOT number.</p>
+    </div>`;
+  const go = async () => {
+    const q = document.getElementById('si').value.trim();
+    if (!q) return;
+    renderLoading(`Searching for "${q}"…`);
+    try {
+      const results = await searchDeals(q);
+      if (!results.length) renderSearch(`No deals found for "${q}".`);
+      else renderDealPick(results);
+    } catch(e) {
+      if (e instanceof AuthRequiredError) renderSignIn(go);
+      else renderSearch('Error: ' + e.message);
+    }
+  };
+  document.getElementById('sb').onclick = go;
+  document.getElementById('si').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+}
+
+function renderDealPick(results) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div class="card-title" style="margin-bottom:0">Select a deal</div>
+        <button class="btn btn-ghost" id="bb">← Back</button>
+      </div>
+      ${results.map(r => `<div class="result-item" data-id="${esc(r.id)}">
+        <div>
+          <div class="result-name">${esc(r.Deal_Name || r.id)}</div>
+          <div class="result-meta">${[r.Stage, r.USDOT ? 'DOT# ' + r.USDOT : null, r.Owner_1_Full_Name, [r.Physical_City, r.Physical_State].filter(Boolean).join(', ')].filter(Boolean).map(esc).join('  ·  ')}</div>
+        </div>
+        <span style="color:#94a3b8;font-size:20px">›</span>
+      </div>`).join('')}
+    </div>`;
+  document.getElementById('bb').onclick = () => renderSearch(null);
+  document.querySelectorAll('.result-item').forEach(el => {
+    el.onclick = async () => {
+      renderLoading('Loading ' + el.querySelector('.result-name').textContent + '…');
+      try { onDealLoaded(await fetchDeal(el.dataset.id)); }
+      catch(e) {
+        if (e instanceof AuthRequiredError) renderSignIn(() => el.onclick());
+        else renderSearch('Error: ' + e.message);
+      }
+    };
+  });
+}
+
+// Decide: picker, straight-to-preview, or no-drivers
+function onDealLoaded(deal) {
+  const drivers = getDrivers(deal);
+  if (drivers.length === 0)      renderNoDrivers(deal);
+  else if (drivers.length === 1) renderPreview(deal, drivers[0], drivers);
+  else                           renderDriverPicker(deal, drivers);
+}
+
+function renderNoDrivers(deal) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div><div class="card-title" style="margin-bottom:0">No drivers found</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
+        <button class="btn btn-ghost" id="bb">← Search</button>
+      </div>
+      <div class="warn-box" style="margin-bottom:0">
+        No drivers found in this Deal's Owner and Driver subform.
+        Add a row with <b>Owner/Driver = Driver</b> in Zoho, then reload this page.
+      </div>
+    </div>`;
+  document.getElementById('bb').onclick = () => renderSearch(null);
+}
+
+function renderDriverPicker(deal, drivers) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div><div class="card-title" style="margin-bottom:0">Select a driver</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
+        <button class="btn btn-ghost" id="bb">← Search</button>
+      </div>
+      <p class="hint" style="margin-top:0;margin-bottom:14px">This form is generated per driver. Pick the driver to prefill.</p>
+      ${drivers.map((d, i) => `<div class="driver-item" data-i="${i}">
+        <div>
+          <div class="driver-name">${esc(d.Full_Name || '(no name)')}</div>
+          <div class="driver-meta">${[d.Drivers_License_Number ? 'Lic# ' + d.Drivers_License_Number : null, d.Drivers_License_State, d.CDL_or_Non_CDL].filter(Boolean).map(esc).join('  ·  ')}</div>
+        </div>
+        <span style="color:#94a3b8;font-size:20px">›</span>
+      </div>`).join('')}
+    </div>`;
+  document.getElementById('bb').onclick = () => renderSearch(null);
+  document.querySelectorAll('.driver-item').forEach(el => {
+    el.onclick = () => renderPreview(deal, drivers[+el.dataset.i], drivers);
+  });
+}
+
+function fRow(label, value) {
+  return !value ? '' : `<div class="field-row"><span class="field-label">${esc(label)}</span><span class="field-value">${esc(value)}</span></div>`;
+}
+
+function renderPreview(deal, drv, drivers) {
+  const multi = drivers && drivers.length > 1;
+  const issue = stateAbbrev(drv.Drivers_License_State);
+  const cityLine = [deal.Physical_City, deal.Physical_State, deal.Physical_Zip].filter(Boolean).join(', ');
+  app.innerHTML = `
+    <div class="card">
+      <div class="back-row">
+        <div><div class="card-title" style="margin-bottom:0">Confirm data</div><div class="deal-title">${esc(deal.Deal_Name || '')}</div></div>
+        <button class="btn btn-ghost" id="bb">← ${multi ? 'Drivers' : 'Search'}</button>
+      </div>
+      <div class="owner-box">
+        <div class="section-label">Driver (Applicant)</div>
+        ${fRow('Applicants Name', drv.Full_Name)}
+        ${fRow('Driving License Number', drv.Drivers_License_Number)}
+        ${fRow('State of Issue', issue + (drv.Drivers_License_State ? `  (${drv.Drivers_License_State})` : ''))}
+      </div>
+      <div class="section">
+        <div class="section-label">Requester (Company)</div>
+        ${fRow('Company Name', deal.Deal_Name)}
+        ${fRow('Contact Name', (deal.Contact_Name && deal.Contact_Name.name) || deal.Owner_1_Full_Name)}
+        ${fRow('Phone', deal.Business_Phone_Number)}
+        ${fRow('Email Address', deal.Email)}
+      </div>
+      <div class="section">
+        <div class="section-label">Address</div>
+        ${fRow('Street', deal.Physical_Street)}
+        ${fRow('City / St / Zip', cityLine)}
+      </div>
+      <div class="warn-box" style="margin-top:8px">
+        ⚠ Date of Birth and signature dates are left blank — the driver completes and signs these in person. Pages 3–4 (FCRA notices) are unchanged.
+      </div>
+      <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Driving Record Release</button>
+      <div id="ge" class="error-box" style="display:none"></div>
+    </div>`;
+  document.getElementById('bb').onclick = () => multi ? renderDriverPicker(deal, drivers) : renderSearch(null);
+  document.getElementById('gb').onclick = async () => {
+    const btn = document.getElementById('gb');
+    btn.disabled = true; btn.textContent = 'Generating PDF…';
+    try {
+      const bytes = await fillPDF(PDF_URL, mapFields(deal, drv));
+      downloadPDF(bytes, 'Driving_Record_Release', deal.Deal_Name, drv.Full_Name);
+      renderDone(deal, drv, drivers);
+    } catch(e) {
+      const err = document.getElementById('ge');
+      err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
+      btn.disabled = false; btn.textContent = '⬇ Generate & Download Driving Record Release';
+    }
+  };
+}
+
+function renderDone(deal, drv, drivers) {
+  app.innerHTML = `
+    <div class="card">
+      <div class="success-box">
+        <div class="check-circle">✓</div>
+        <h2 style="font-size:20px;font-weight:600;margin-bottom:6px">Driving Record Release Downloaded!</h2>
+        <p style="color:#64748b;font-size:14px;margin-bottom:24px">${esc(deal.Deal_Name || '')} — ${esc(drv.Full_Name || '')}</p>
+        ${drivers && drivers.length > 1 ? `<button class="btn btn-primary" id="db" style="margin-right:8px">Pick Another Driver</button>` : ''}
+        <button class="btn btn-ghost" id="ab" style="margin-right:8px">Search Another Deal</button>
+        <button class="btn btn-ghost" id="rb">Re-download PDF</button>
+      </div>
+    </div>`;
+  if (drivers && drivers.length > 1) document.getElementById('db').onclick = () => renderDriverPicker(deal, drivers);
+  document.getElementById('ab').onclick = () => renderSearch(null);
+  document.getElementById('rb').onclick = async () => {
+    try { downloadPDF(await fillPDF(PDF_URL, mapFields(deal, drv)), 'Driving_Record_Release', deal.Deal_Name, drv.Full_Name); }
+    catch(e) { alert('Error: ' + e.message); }
+  };
+}
+
+// ─── Boot: handle ?id= deep-link from the Deal's "Generate Form" button ───────
+(async function boot() {
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (id) {
+    renderLoading('Loading deal from Zoho CRM…');
+    try { onDealLoaded(await fetchDeal(id)); }
+    catch(e) {
+      if (e instanceof AuthRequiredError) {
+        renderSignIn(async () => {
+          renderLoading('Loading deal from Zoho CRM…');
+          try { onDealLoaded(await fetchDeal(id)); }
+          catch(err) { renderSearch('Could not load deal: ' + err.message); }
+        });
+      } else {
+        renderSearch('Could not load deal: ' + e.message);
+      }
+    }
+  } else {
+    renderSearch(null);
+  }
+})();
+</script>
+</body>
+</html>
