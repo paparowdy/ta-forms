@@ -40,6 +40,13 @@ input[type="text"]:focus { border-color: #2563eb; }
 .section { margin-bottom: 18px; }
 .section-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
 .owner-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }
+.addr-edit { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+.addr-grid { display: grid; grid-template-columns: 2fr 0.7fr 1fr; gap: 10px; }
+.addr-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #94a3b8; font-family: monospace; }
+.addr-field input[type="text"] { width: 100%; padding: 8px 10px; font-size: 13px; background: white; }
+.addr-street { grid-column: 1 / -1; }
+.addr-state input[type="text"] { text-transform: uppercase; }
+.addr-edit .hint a { color: #2563eb; }
 .owner-box .section-label { color: #16a34a; }
 .warn-box   { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
 .error-box  { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #dc2626; margin-top: 12px; }
@@ -55,6 +62,8 @@ input[type="text"]:focus { border-color: #2563eb; }
   .header { padding: 12px 16px; }
   .container { margin: 16px auto; }
   .back-row { flex-wrap: wrap; gap: 8px; }
+  .addr-grid { grid-template-columns: 1fr 1fr; }
+  .addr-city { grid-column: 1 / -1; }
 }
 </style>
 </head>
@@ -74,7 +83,47 @@ input[type="text"]:focus { border-color: #2563eb; }
 // ─── Config ────────────────────────────────────────────────────────────────
 const WORKER  = 'https://zoho-proxy.oscarmh00.workers.dev';
 const PDF_URL = 'Driving-Record-Release.pdf';
-const FIELD_FONT_SIZE = 9;   // fixed fill font size to match the form's template text
+const FIELD_FONT_SIZE = 9;   // fill font size (max) to match the form's template text
+const MIN_FONT_SIZE   = 6;   // long values auto-shrink, but never below this
+const LABEL_GAP       = 5;   // pt of clear space between the printed label and the start of the value
+const FIELD_BOX_H     = 13;  // widget height: just tall enough for 9pt text so viewers keep typed edits on the line
+const BASELINE_LIFT   = 0.6; // value baseline sits this far above the printed underline so glyphs don't touch it
+
+// Per-field placement measured from the form's printed text (points, PDF coords, origin bottom-left):
+//   x0   = where the printed label ends  → the value starts LABEL_GAP to the right of it
+//   base = baseline of the printed label / underscore line → the value's baseline is aligned to it
+//   x1   = hard right limit (end of the underline, or just short of the next printed label)
+// The widget rectangles in the source PDF start exactly where the label ends and are ~24–29pt
+// tall, which is why values used to butt against labels and float above the line.
+const FIELD_LAYOUT = {
+  // PAGE 1 — Requester (company)
+  'Company Name':           { x0: 105.7, base: 659.2, x1: 305.8 },
+  'Contact Name':           { x0: 370.7, base: 659.2, x1: 550.8 },
+  'Phone':                  { x0:  65.5, base: 634.7, x1: 298.0 },
+  'Fax':                    { x0: 325.6, base: 634.7, x1: 550.6 },
+  'Email Address':          { x0: 103.0, base: 610.1, x1: 553.1 },
+  // PAGE 1 — Applicant
+  'Applicants Name':        { x0: 129.0, base: 356.4, x1: 560.2 },
+  'Address':                { x0:  82.7, base: 316.0, x1: 322.0 },
+  'City':                   { x0: 347.0, base: 316.0, x1: 459.0 },
+  'St':                     { x0: 471.6, base: 316.0, x1: 493.0 },
+  'Zip':                    { x0: 513.4, base: 316.0, x1: 559.4 },
+  'Date of Birth':          { x0: 105.8, base: 275.5, x1: 164.0 },
+  'undefined':              { x0: 169.3, base: 275.5, x1: 230.5 },
+  'undefined_2':            { x0: 235.8, base: 275.5, x1: 299.0 },
+  'Phone_2':                { x0: 344.8, base: 273.4, x1: 551.9 },
+  'Driving License Number': { x0: 160.1, base: 235.1, x1: 436.0 },
+  'State of Issue':         { x0: 503.5, base: 235.1, x1: 555.5 },
+  'Date':                   { x0: 430.0, base: 185.2, x1: 550.8 },
+  // PAGE 2 — Disclosure
+  'The Employer':           { x0:  99.3, base: 668.8, x1: 341.0 },
+  'Applicants Name_2':      { x0: 100.3, base: 458.5, x1: 529.5 },
+  'Current Address':        { x0:  97.5, base: 409.5, x1: 531.4 },
+  'City_2':                 { x0:  47.1, base: 360.4, x1: 190.5 },
+  'St_2':                   { x0: 201.9, base: 360.4, x1: 234.5 },
+  'Zip_2':                  { x0: 249.9, base: 360.4, x1: 315.5 },
+  'Date_2':                 { x0: 474.5, base: 297.0, x1: 570.4 }
+};
 
 // ─── Worker / Zoho access ────────────────────────────────────────────────────
 class AuthRequiredError extends Error {
@@ -121,26 +170,37 @@ async function fillPDF(pdfUrl, fieldValues) {
   const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
   const form   = pdfDoc.getForm();
   const helv   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-  const targetH = FIELD_FONT_SIZE + 5;
+  // pdf-lib's fixed inner padding for text-field appearances (this form's widgets have no border).
+  const PAD = 1;
   for (const field of form.getFields()) {
     if (!(field instanceof PDFLib.PDFTextField)) continue;
     const name = field.getName();
-    const val  = fieldValues[name];
+    const raw  = fieldValues[name];
+    const val  = raw == null ? '' : String(raw).trim();
+    const lay  = FIELD_LAYOUT[name];
     try {
-      // Apply the fixed small font to EVERY text field — including ones we leave blank
-      // (Date of Birth, Date, Date_2, Fax) — so staff edits render at the same size
+      let size = FIELD_FONT_SIZE;
+      if (lay) {
+        // 1) Horizontal: start the box LABEL_GAP after the printed label; stop at the right limit.
+        const x     = lay.x0 + LABEL_GAP - PAD;
+        const width = Math.max(8, lay.x1 - x);
+        // 2) Long values: shrink just this value's font until it fits the line (never overflow/clip).
+        const maxW = width - 2 * PAD - 1;
+        if (val) while (size > MIN_FONT_SIZE && helv.widthOfTextAtSize(val, size) > maxW) size -= 0.5;
+        // 3) Vertical: pdf-lib centers single-line text in the box —
+        //    baseline = y + PAD + ((h - 2·PAD)/2 − capHeight/2). Solve for y so the baseline
+        //    lands on the printed line. A short box also keeps viewer-regenerated appearances
+        //    (when staff edit a field) on the same line instead of centered in a tall box.
+        const cap = helv.heightAtSize(size, { descender: false });
+        const y   = (lay.base + BASELINE_LIFT) - PAD - ((FIELD_BOX_H - 2 * PAD) / 2 - cap / 2);
+        for (const w of field.acroField.getWidgets()) w.setRectangle({ x, y, width, height: FIELD_BOX_H });
+      }
+      // Apply the small font to EVERY text field — including ones we leave blank
+      // (Fax, Date of Birth, Date, Date_2) — so staff edits render at the same size
       // instead of the viewer's large auto-size.
-      try { field.setFontSize(FIELD_FONT_SIZE); } catch {}
-      // Tall boxes vertically-center text, so it floats above the underline. Shrink the
-      // box from the top (bottom fixed) so both prefilled AND typed text sit on the line.
-      try {
-        for (const w of field.acroField.getWidgets()) {
-          const r = w.getRectangle();
-          if (r.height > targetH) w.setRectangle({ x: r.x, y: r.y, width: r.width, height: targetH });
-        }
-      } catch {}
+      try { field.setFontSize(size); } catch {}
       // Fill the value if we have one for this field.
-      if (val != null && val !== '') field.setText(String(val));
+      if (val) field.setText(val);
     } catch {}
   }
   form.getFields().forEach(f => { try { f.updateAppearances(helv); } catch {} });
@@ -242,7 +302,8 @@ function getApplicants(record, source) {
         Full_Name: [r.First_Name, r.Last_Name].filter(v => v && String(v).trim()).join(' ').replace(/\s+/g, ' ').trim(),
         Drivers_License_Number: cleanLicense(r.DL_Number),
         Drivers_License_State: r.DL_State || '',
-        DOB: r.Birth_Date || '',        // D&A stores DOB as Birth_Date
+        DOB: '',                        // policy: DOB is left blank on the D&A path (Birth_Date is not used)
+        Phone: r.Phone || '',
         Owner_Driver: r.Status || '',   // picker badge shows D&A Status (Active/Inactive/…)
         CDL_or_Non_CDL: null
       }));
@@ -252,26 +313,28 @@ function getApplicants(record, source) {
   return rows.filter(r => r && r.Full_Name && String(r.Full_Name).trim());
 }
 
-// Load a D&A record and enrich its Contact Name from the linked Deal (Company lookup).
-// The D&A record's own DER_Name is kept only as a fallback when no linked deal/contact.
+// Load a D&A record. Contact Name comes from the record's own DER_Name (Designated Employer
+// Representative). Only when DER_Name is empty do we look at the linked Deal (Company lookup)
+// and borrow its Contact_Name, so the field isn't left blank on the many records with no DER.
 async function loadDARecord(id) {
   const da  = await fetchDA(id);
   const rec = buildRecordFromDA(da);
-  if (da.Company && da.Company.id) {
+  if (!rec.Contact_Name && da.Company && da.Company.id) {
     try {
       const linked = await fetchDeal(da.Company.id);
       const cn = linked && linked.Contact_Name && linked.Contact_Name.name;
-      if (cn) rec.Contact_Name = { name: cn };   // contact from the associated Deal
-    } catch (e) { /* keep DER_Name fallback */ }
+      if (cn) rec.Contact_Name = { name: cn };   // fallback: contact from the associated Deal
+    } catch (e) { /* leave Contact Name blank */ }
   }
   return rec;
 }
 
 // Normalize a raw Drug_and_Alcohol record into the same internal shape the renderers
-// and mapFields() already expect from a Deal. Address policy: Physical_* only.
+// and mapFields() already expect from a Deal. Address policy: Physical_* only (never Mailing_*).
 function buildRecordFromDA(da) {
   return {
     _source: 'da',
+    id:                    da.id,
     Deal_Name:             da.Name,
     Contact_Name:          da.DER_Name ? { name: da.DER_Name } : null,
     Owner_1_Full_Name:     null,
@@ -293,8 +356,34 @@ function roleLabel(row) {
   return (!v || v === '-None-') ? '—' : v;
 }
 
+// ─── Address (Physical_* only, with a per-form editable override) ────────────
+// The confirm screen pre-fills these four values from the record's Physical_* fields and lets
+// staff change them before generating. Whatever is in the inputs at Generate time is used on
+// BOTH pages of the PDF. Nothing is written back to Zoho. Edits are remembered in memory per
+// record for the life of this page load, so picking a second driver keeps the corrected address.
+const ADDRESS_EDITS = {};   // record id → { street, city, state, zip }
+function addressFromRecord(rec) {
+  const st = rec.Physical_State || '';
+  return {
+    street: (rec.Physical_Street || '').trim(),
+    city:   (rec.Physical_City   || '').trim(),
+    state:  stateAbbrev(st) || String(st).trim(),   // "Missouri" → "MO"; unknown text left as typed
+    zip:    (rec.Physical_Zip == null ? '' : String(rec.Physical_Zip)).trim()
+  };
+}
+function currentAddress(rec) {
+  return ADDRESS_EDITS[rec.id] || addressFromRecord(rec);
+}
+function readAddressInputs() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const state = g('addr-state');
+  return { street: g('addr-street'), city: g('addr-city'), state: stateAbbrev(state) || state, zip: g('addr-zip') };
+}
+
 // ─── Field mapping → PDF field names (case-sensitive, confirmed via inspection) ─
-function mapFields(deal, drv) {
+//   addr = { street, city, state, zip } — the (possibly edited) Physical address used on both pages.
+function mapFields(deal, drv, addr) {
+  addr = addr || currentAddress(deal);
   const f = {};
   const set = (k, v) => { if (v != null && String(v).trim()) f[k] = String(v).trim(); };
   const contact = (deal.Contact_Name && deal.Contact_Name.name) || deal.Owner_1_Full_Name;
@@ -308,10 +397,10 @@ function mapFields(deal, drv) {
 
   // PAGE 1 — Applicant (driver)
   set('Applicants Name',        drv.Full_Name);
-  set('Address',                deal.Physical_Street);
-  set('City',                   deal.Physical_City);
-  set('St',                     deal.Physical_State);   // already 2-letter in Zoho
-  set('Zip',                    deal.Physical_Zip);
+  set('Address',                addr.street);           // Physical_* (or the staff-edited override)
+  set('City',                   addr.city);
+  set('St',                     addr.state);            // 2-letter
+  set('Zip',                    addr.zip);
   // DOB boxes (month / day / year) from the subform — Deals: DOB, D&A: Birth_Date (mapped to DOB)
   const dob = splitDOB(drv.DOB);
   set('Date of Birth', dob.m);   // month box
@@ -325,10 +414,10 @@ function mapFields(deal, drv) {
   // PAGE 2 — Disclosure
   set('The Employer',     deal.Deal_Name);
   set('Applicants Name_2',drv.Full_Name);
-  set('Current Address',  deal.Physical_Street);
-  set('City_2',           deal.Physical_City);
-  set('St_2',             deal.Physical_State);
-  set('Zip_2',            deal.Physical_Zip);
+  set('Current Address',  addr.street);           // always identical to page 1
+  set('City_2',           addr.city);
+  set('St_2',             addr.state);
+  set('Zip_2',            addr.zip);
   // 'Date_2' — leave blank
 
   // PAGES 3 & 4 — FCRA boilerplate, no fields
@@ -469,9 +558,12 @@ function fRow(label, value) {
 }
 
 function renderPreview(deal, drv, applicants) {
-  const multi = applicants && applicants.length > 1;
-  const issue = stateAbbrev(drv.Drivers_License_State);
-  const cityLine = [deal.Physical_City, deal.Physical_State, deal.Physical_Zip].filter(Boolean).join(', ');
+  const multi    = applicants && applicants.length > 1;
+  const isDA     = deal._source === 'da';
+  const issue    = stateAbbrev(drv.Drivers_License_State);
+  const original = addressFromRecord(deal);          // Zoho's Physical_* values
+  const addr     = currentAddress(deal);             // …or the staff edit remembered for this record
+  const edited   = JSON.stringify(addr) !== JSON.stringify(original);
   app.innerHTML = `
     <div class="card">
       <div class="back-row">
@@ -492,25 +584,49 @@ function renderPreview(deal, drv, applicants) {
         ${fRow('Phone', formatPhone(deal.Business_Phone_Number))}
         ${fRow('Email Address', deal.Email)}
       </div>
-      <div class="section">
-        <div class="section-label">Address</div>
-        ${fRow('Street', deal.Physical_Street)}
-        ${fRow('City / St / Zip', cityLine)}
+      <div class="section addr-edit">
+        <div class="section-label">Address (edit if different)</div>
+        <p class="hint" style="margin:0 0 10px">Pre-filled from the record's <b>physical</b> address in Zoho. If the driving record uses a different address, change it here — it goes on pages 1 and 2 of this PDF only. Zoho is not updated.</p>
+        <div class="addr-grid">
+          <label class="addr-field addr-street">Street<input type="text" id="addr-street" value="${esc(addr.street)}" autocomplete="off"></label>
+          <label class="addr-field addr-city">City<input type="text" id="addr-city" value="${esc(addr.city)}" autocomplete="off"></label>
+          <label class="addr-field addr-state">State<input type="text" id="addr-state" value="${esc(addr.state)}" autocomplete="off" placeholder="XX"></label>
+          <label class="addr-field addr-zip">Zip<input type="text" id="addr-zip" value="${esc(addr.zip)}" autocomplete="off"></label>
+        </div>
+        <div id="addr-reset-row" class="hint" style="display:${edited ? 'block' : 'none'}">Address differs from Zoho · <a href="#" id="addr-reset">Reset to Zoho's physical address</a></div>
       </div>
       <div class="warn-box" style="margin-top:8px">
-        ⚠ Signature lines and signature dates are left blank for the driver to sign in person. Date of Birth is prefilled when on file in Zoho. Pages 3–4 (FCRA notices) are unchanged.
+        ⚠ Signature lines and signature dates are left blank for the driver to sign in person. ${isDA ? 'Date of Birth is left blank for the driver to complete.' : 'Date of Birth is prefilled when on file in Zoho.'} Pages 3–4 (FCRA notices) are unchanged.
       </div>
       <button class="btn btn-success" id="gb">⬇ Generate &amp; Download Driving Record Release</button>
       <div id="ge" class="error-box" style="display:none"></div>
     </div>`;
   document.getElementById('bb').onclick = () => multi ? renderApplicantPicker(deal, applicants) : renderSearch(null);
+  // Keep the in-memory override in sync while typing; show the reset link once it differs from Zoho.
+  const syncAddr = () => {
+    const cur  = readAddressInputs();
+    const same = JSON.stringify(cur) === JSON.stringify(original);
+    if (same) delete ADDRESS_EDITS[deal.id]; else ADDRESS_EDITS[deal.id] = cur;
+    document.getElementById('addr-reset-row').style.display = same ? 'none' : 'block';
+  };
+  ['addr-street', 'addr-city', 'addr-state', 'addr-zip'].forEach(id => document.getElementById(id).addEventListener('input', syncAddr));
+  document.getElementById('addr-reset').onclick = e => {
+    e.preventDefault();
+    document.getElementById('addr-street').value = original.street;
+    document.getElementById('addr-city').value   = original.city;
+    document.getElementById('addr-state').value  = original.state;
+    document.getElementById('addr-zip').value    = original.zip;
+    syncAddr();
+  };
   document.getElementById('gb').onclick = async () => {
     const btn = document.getElementById('gb');
     btn.disabled = true; btn.textContent = 'Generating PDF…';
     try {
-      const bytes = await fillPDF(PDF_URL, mapFields(deal, drv));
+      syncAddr();
+      const useAddr = readAddressInputs();   // whatever is in the inputs at Generate time wins
+      const bytes = await fillPDF(PDF_URL, mapFields(deal, drv, useAddr));
       downloadPDF(bytes, 'Driving_Record_Release', deal.Deal_Name, drv.Full_Name);
-      renderDone(deal, drv, applicants);
+      renderDone(deal, drv, applicants, useAddr);
     } catch(e) {
       const err = document.getElementById('ge');
       err.style.display = 'block'; err.textContent = 'Error: ' + e.message;
@@ -519,7 +635,7 @@ function renderPreview(deal, drv, applicants) {
   };
 }
 
-function renderDone(deal, drv, applicants) {
+function renderDone(deal, drv, applicants, addr) {
   app.innerHTML = `
     <div class="card">
       <div class="success-box">
@@ -534,7 +650,7 @@ function renderDone(deal, drv, applicants) {
   if (applicants && applicants.length > 1) document.getElementById('db').onclick = () => renderApplicantPicker(deal, applicants);
   document.getElementById('ab').onclick = () => renderSearch(null);
   document.getElementById('rb').onclick = async () => {
-    try { downloadPDF(await fillPDF(PDF_URL, mapFields(deal, drv)), 'Driving_Record_Release', deal.Deal_Name, drv.Full_Name); }
+    try { downloadPDF(await fillPDF(PDF_URL, mapFields(deal, drv, addr)), 'Driving_Record_Release', deal.Deal_Name, drv.Full_Name); }
     catch(e) { alert('Error: ' + e.message); }
   };
 }
